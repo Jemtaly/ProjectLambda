@@ -36,7 +36,7 @@ def FACTORIAL [$a $a] [[>:1 $a (* $a ($b $b (-:1 $a))) 1]]
 calc &FACTORIAL 99
 ```
 
-Convert 114514 to decimal 3
+Convert 114514 to ternary
 
 ```
 def BASE [[$a $a] [[< $c $a $a ($b $b (/ $c $a) (% $c $a))]]]
