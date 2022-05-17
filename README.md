@@ -25,6 +25,7 @@ Compile the c++ source code, then run it directly from the command line.
 | `$a` `$b` `...` | Formal parameters, use `$a` for the argument to the innermost lambda expression, use `$b` for the second innermost one, and so on ... Example: `[[$a $b] $a] x` => `[$a x] x` => `x x` |
 | `&FUNCTION` | to call the function |
 | `+` `-` `*` `\` `%` | Binary operators, in the form of prefix expressions, e.g., `(5 - 2) / 3` should be represented as `/ 3 (- 2 5)`. |
+| `+:n` `-:n` `*:n` `\:n` `%:n` | Equivalent to `+ n` `- n` `* n` `\ n` `% n`, notice that `n` must be a number, not an expression. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
 
 ## Examples
