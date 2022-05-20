@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #include <string>
 class StrInt {
 	size_t len;
@@ -11,20 +12,14 @@ class StrInt {
 		return abs[i < len ? i : len];
 	}
 public:
-	StrInt(StrInt const &rval) : len(rval.len), abs(new int8_t[rval.len + 1]) {
-		for (size_t i = 0; i <= rval.len; i++)
-			abs[i] = rval.abs[i];
+	StrInt(StrInt const &rval) = delete;
+	StrInt(StrInt &&rval) : len(rval.len), abs(rval.abs) {
+		rval.abs = nullptr;
 	}
+	StrInt &operator=(StrInt const &rval) = delete;
+	StrInt &operator=(StrInt &&rval) = delete;
 	~StrInt() {
 		delete[] abs;
-	}
-	StrInt &operator=(StrInt const &rval) {
-		delete[] abs;
-		len = rval.len;
-		abs = new int8_t[rval.len + 1];
-		for (size_t i = 0; i <= rval.len; i++)
-			abs[i] = rval.abs[i];
-		return *this;
 	}
 	StrInt(std::string const &str) : len(str.size() - (str[0] == '+' || str[0] == '-')), abs(new int8_t[len + 1]) {
 		if (str[0] == '-') {
@@ -72,15 +67,18 @@ public:
 		} else
 			return "0";
 	}
-	friend StrInt operator+(StrInt const &, StrInt const &);
-	friend StrInt operator-(StrInt const &, StrInt const &);
-	friend StrInt operator*(StrInt const &, StrInt const &);
-	friend StrInt divmod(StrInt const &, StrInt const &, bool const &);
-	friend StrInt operator/(StrInt const &, StrInt const &);
-	friend StrInt operator%(StrInt const &, StrInt const &);
-	friend bool operator>(StrInt const &, StrInt const &);
-	friend bool operator<(StrInt const &, StrInt const &);
-	friend bool operator==(StrInt const &, StrInt const &);
+	friend inline StrInt operator+(StrInt const &, StrInt const &);
+	friend inline StrInt operator-(StrInt const &, StrInt const &);
+	friend inline StrInt operator*(StrInt const &, StrInt const &);
+	friend inline StrInt divmod(StrInt const &, StrInt const &, bool const &);
+	friend inline StrInt operator/(StrInt const &, StrInt const &);
+	friend inline StrInt operator%(StrInt const &, StrInt const &);
+	friend inline bool operator>(StrInt const &, StrInt const &);
+	friend inline bool operator<(StrInt const &, StrInt const &);
+	friend inline bool operator>=(StrInt const &, StrInt const &);
+	friend inline bool operator<=(StrInt const &, StrInt const &);
+	friend inline bool operator==(StrInt const &, StrInt const &);
+	friend inline bool operator!=(StrInt const &, StrInt const &);
 };
 StrInt operator+(StrInt const &lhs, StrInt const &rhs) {
 	size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
@@ -187,6 +185,19 @@ bool operator>(StrInt const &lhs, StrInt const &rhs) {
 	}
 	return false;
 }
+bool operator>=(StrInt const &lhs, StrInt const &rhs) {
+	if (lhs.abs[lhs.len] < rhs.abs[rhs.len])
+		return true;
+	if (lhs.abs[lhs.len] > rhs.abs[rhs.len])
+		return false;
+	for (size_t i = (lhs.len > rhs.len ? lhs.len : rhs.len) - 1; i != -1; i--) {
+		if (lhs.get(i) > rhs.get(i))
+			return true;
+		if (lhs.get(i) < rhs.get(i))
+			return false;
+	}
+	return true;
+}
 bool operator<(StrInt const &lhs, StrInt const &rhs) {
 	if (lhs.abs[lhs.len] > rhs.abs[rhs.len])
 		return true;
@@ -198,6 +209,25 @@ bool operator<(StrInt const &lhs, StrInt const &rhs) {
 		if (lhs.get(i) > rhs.get(i))
 			return false;
 	}
+	return false;
+}
+bool operator<=(StrInt const &lhs, StrInt const &rhs) {
+	if (lhs.abs[lhs.len] > rhs.abs[rhs.len])
+		return true;
+	if (lhs.abs[lhs.len] < rhs.abs[rhs.len])
+		return false;
+	for (size_t i = (lhs.len > rhs.len ? lhs.len : rhs.len) - 1; i != -1; i--) {
+		if (lhs.get(i) < rhs.get(i))
+			return true;
+		if (lhs.get(i) > rhs.get(i))
+			return false;
+	}
+	return true;
+}
+bool operator!=(StrInt const &lhs, StrInt const &rhs) {
+	for (size_t i = lhs.len > rhs.len ? lhs.len : rhs.len; i != -1; i--)
+		if (lhs.get(i) != rhs.get(i))
+			return true;
 	return false;
 }
 bool operator==(StrInt const &lhs, StrInt const &rhs) {

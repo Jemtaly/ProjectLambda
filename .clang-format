@@ -15,3 +15,5 @@ SeparateDefinitionBlocks: Never
 DerivePointerAlignment: false
 ReferenceAlignment: Right
 PointerAlignment: Right
+QualifierAlignment: Custom
+QualifierOrder: ['static', 'constexpr', 'inline', 'type', 'const']
