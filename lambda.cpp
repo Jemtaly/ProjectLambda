@@ -47,7 +47,7 @@ size_t operator>>(std::string &str, std::string &buffer) {
 	for (; str[i] == ' '; i++)
 		;
 	size_t j = i;
-	for (size_t br = 0, size = str.size(); br || i < size && str[i] != ' '; i++)
+	for (size_t br = 0; br || i < str.size() && str[i] != ' '; i++)
 		switch (str[i]) {
 		case '(':
 		case '[':
@@ -99,7 +99,7 @@ std::string &operator<<(std::string &expression, bool const &calc) {
 		if (calc && function[0] == '[') {
 			function = function.substr(1, function.size() - 2);
 			std::string temp;
-			for (size_t nest = 0, i = 0, size = function.size(); i < size; i++)
+			for (size_t i = 0, nest = 0; i < function.size(); i++)
 				if (i && function[i - 1] == '$' && function[i] - 'a' == nest)
 					temp += std::to_string(args.size());
 				else {
@@ -118,7 +118,8 @@ std::string &operator<<(std::string &expression, bool const &calc) {
 			function << calc;
 		} else {
 			argument << calc;
-			for (size_t br = 0, i = 0, size = argument.size(); br || i < size && (argument[i] == ' ' ? argument = '(' + argument + ')', 0 : 1); i++)
+			size_t i = 0;
+			for (size_t br = 0; br || i < argument.size() && argument[i] != ' '; i++)
 				switch (argument[i]) {
 				case '(':
 				case '[':
@@ -129,6 +130,8 @@ std::string &operator<<(std::string &expression, bool const &calc) {
 					br--;
 					break;
 				}
+			if (i < argument.size())
+				argument = '(' + argument + ')';
 			try {
 				if (function.size() == 1 && (oprs.find(function[0]) != oprs.end() || cmps.find(function[0]) != cmps.end()))
 					function += ':' + std::string(StrInt(argument));
@@ -188,11 +191,12 @@ int main(int argc, char *argv[]) {
 			} else;
 		else if (buffer == "calc") {
 			line << true;
-			for (size_t i = 0; i < args.size(); delete args[i++])
-				;
+			for (size_t i = 0; i < args.size(); i++)
+				delete args[i];
 			args.clear();
 			std::cerr << sym_out;
 			std::cout << line << std::endl;
 		}
 	}
+	return 0;
 }
