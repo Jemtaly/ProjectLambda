@@ -63,38 +63,39 @@ size_t operator>>(std::string &str, std::string &buffer) {
 	str = str.substr(i);
 	return d;
 }
-std::string &operator<<(std::string &expression, bool const &calc) {
+void operator<<(std::string &expression, bool const &calc) {
 	std::string function, argument;
-	if (expression >> function)
-		switch (function[0]) {
-		case '(':
-			function = function.substr(1, function.size() - 2);
-			function << calc;
-			break;
-		case '$': {
-			size_t i;
-			std::stringstream(function.substr(1)) >> i;
-			if (not args[i]->calculated) {
-				args[i]->exp << calc;
-				args[i]->calculated = 1;
+	if ((expression >> function) == 0) {
+		expression = "()";
+		return;
+	}
+	switch (function[0]) {
+	case '(':
+		function = function.substr(1, function.size() - 2);
+		function << calc;
+		break;
+	case '$': {
+		size_t i;
+		std::stringstream(function.substr(1)) >> i;
+		if (not args[i]->calculated) {
+			args[i]->exp << calc;
+			args[i]->calculated = 1;
+		}
+		function = args[i]->exp;
+		break;
+	}
+	case '&':
+		if (calc)
+			if (auto const &l = lambda.find(function.substr(1)); l != lambda.end()) {
+				function = l->second;
+				function << calc;
 			}
-			function = args[i]->exp;
-			break;
-		}
-		case '&':
-			if (calc)
-				if (auto const &l = lambda.find(function.substr(1)); l != lambda.end()) {
-					function = l->second;
-					function << calc;
-				}
-			break;
-		default:
-			if (auto const &p = predef.find(function); p != predef.end())
-				function = p->second;
-			break;
-		}
-	else
-		return expression = "()";
+		break;
+	default:
+		if (auto const &p = predef.find(function); p != predef.end())
+			function = p->second;
+		break;
+	}
 	while (expression >> argument)
 		if (calc && function[0] == '[') {
 			function = function.substr(1, function.size() - 2);
@@ -148,7 +149,7 @@ std::string &operator<<(std::string &expression, bool const &calc) {
 				function += ' ' + argument;
 			}
 		}
-	return expression = function;
+	expression = function;
 }
 int main(int argc, char *argv[]) {
 	bool check_stdin = true, check_stdout = true, check_stderr = true;
@@ -167,36 +168,33 @@ int main(int argc, char *argv[]) {
 		sym_in = ">> ";
 	if (check_stdout && check_stderr)
 		sym_out = "=> ";
-	for (bool eof = false; !eof;) {
+	for (bool end = false; !end;) {
 		std::string line, buffer;
 		std::cerr << sym_in;
 		std::getline(std::cin, line);
-		if ((eof = std::cin.eof()) && check_stdin && check_stderr)
+		if ((end = std::cin.eof()) && check_stdin && check_stderr)
 			std::cerr << std::endl;
 		line >> buffer;
-		if (buffer == "exit")
-			break;
-		else if (buffer == "list")
-			for (auto const &l : lambda) {
-				std::cerr << sym_out;
-				std::cout << std::left << std::setw(9) << (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
-			}
-		else if (buffer == "del")
-			while (line >> buffer)
-				lambda.erase(buffer);
-		else if (buffer == "def")
-			if (line >> buffer) {
-				line << false;
-				lambda[buffer] = line;
-			} else;
-		else if (buffer == "calc") {
+		if (buffer == "calc") {
 			line << true;
 			for (size_t i = 0; i < args.size(); i++)
 				delete args[i];
 			args.clear();
 			std::cerr << sym_out;
 			std::cout << line << std::endl;
-		}
+		} else if (buffer == "def") {
+			if (line >> buffer) {
+				line << false;
+				lambda[buffer] = line;
+			}
+		} else if (buffer == "del")
+			while (line >> buffer)
+				lambda.erase(buffer);
+		else if (buffer == "list")
+			for (auto const &l : lambda) {
+				std::cerr << sym_out;
+				std::cout << std::left << std::setw(9) << (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
+			}
 	}
 	return 0;
 }
