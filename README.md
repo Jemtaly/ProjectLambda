@@ -10,11 +10,10 @@ Compile the c++ source code, then run it directly from the command line.
 
 | command | usage |
 | --- | --- |
-| `def FUNCTION ...` | to define a function |
-| `calc ...` | to calculate the statement |
-| `list` | to list all the defined functions |
-| `del FUNCTION1 FUNCTION2 ...` | to delete the defined functions |
-| `exit` | to exit the calculator|
+| `def FUNCTION ...` | Define a function |
+| `calc ...` | Calculate the statement |
+| `list` | List all the defined functions |
+| `del FUNCTION1 FUNCTION2 ...` | Delete the defined functions |
 
 ## Syntax
 
