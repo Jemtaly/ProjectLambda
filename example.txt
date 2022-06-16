@@ -5,6 +5,6 @@ def FACT [$a $a] [[[=:0 (% $b $a) (= $b $a $b ($c $c 2 (/ $b $a) $b)) ($c $c (+:
 def BASE [[$a $a] [[< $c $a $a ($b $b (/ $c $a) (% $c $a))]]]
 def POW [[$a $a] [[>:0 $a (>:1 $a (* ([* $a $a] ($b $b (/:2 $a))) ($b $b (%:2 $a))) $c) 1]]]
 def LOG [[$a $a] [[>:1 $a (+:1 ($b $b (/ $c $a))) 0]]]
-def AREA [[[[&SQRT (* $a (* (- $b $a) (* (- $c $a) (- $d $a))))] (/:2 (+ $a (+ $b $c)))]]]
+def AREA [[[[&SQR (* $a (* (- $b $a) (* (- $c $a) (- $d $a))))] (/:2 (+ $a (+ $b $c)))]]]
 def FOR [$a $a] [[[>:0 $b [$b ($d $d (-:1 $c) $b $a)] [$a]]]]
 def EAT [$a $a] [[$b $b]]
