@@ -10,8 +10,9 @@ Compile the c++ source code, then run it directly from the command line.
 
 | command | usage |
 | --- | --- |
-| `def FUNCTION ...` | Define a function. |
 | `calc ...` | Calculate the statement. |
+| `set FUNCTION/VAR FORMULA` | Set a variable/function. |
+| `def FUNCTION/VAR FORMULA` | Similar to `set`, but the formula will not be calculated until it's used. |
 | `list` | List all the defined functions. |
 | `del FUNCTION1 FUNCTION2 ...` | Delete the defined functions. |
 
@@ -34,6 +35,7 @@ Compile the c++ source code, then run it directly from the command line.
 ```
 def FACTORIAL [$a $a] [[>:1 $a (* $a ($b $b (-:1 $a))) 1]]
 calc &FACTORIAL 99
+# output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
 
 ### Convert 114514 to ternary
@@ -41,4 +43,17 @@ calc &FACTORIAL 99
 ```
 def BASE [[$a $a] [[< $c $a $a ($b $b (/ $c $a) (% $c $a))]]]
 calc &BASE 3 114514
+# output: 1 2 2 1 1 0 0 2 0 2 1
+```
+
+### Lazy evaluation
+
+```
+set X 100
+def Y *:2 &X
+calc &Y
+# output: 200
+set X 50
+calc &Y
+# output: 100
 ```
