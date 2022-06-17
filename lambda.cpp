@@ -80,6 +80,12 @@ int main(int argc, char *argv[]) {
 			args.clear();
 			std::cerr << sym_out;
 			std::cout << line << std::endl;
+		} else if (buffer == "set") {
+			if (line >> buffer) {
+				calcexpr(line);
+				formexpr(line);
+				lambda[buffer] = line;
+			}
 		} else if (buffer == "def") {
 			if (line >> buffer) {
 				formexpr(line);
