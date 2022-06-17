@@ -212,11 +212,11 @@ void formword(std::string &word, bool mode) {
 	} else if (word.front() == '[' and word.back() == ']') {
 		word = word.substr(1, word.size() - 2);
 		formexpr(word, mode);
-		word = '[' + word + ']';
+		word = word == "()" ? "[]" : '[' + word + ']';
 	} else if (mode && word.front() == '&')
 		if (auto const &l = lambda.find(word.substr(1)); l != lambda.end()) {
 			word = l->second;
-			calcexpr(word);
+			formexpr(word, mode);
 		}
 }
 void formexpr(std::string &expr, bool mode) {
