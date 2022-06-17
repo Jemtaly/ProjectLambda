@@ -74,6 +74,9 @@ int main(int argc, char *argv[]) {
 			if (line >> buffer) {
 				calcexpr(line);
 				formexpr(line, true);
+				for (size_t i = 0; i < args.size(); i++)
+					delete args[i];
+				args.clear();
 				lambda[buffer] = line;
 			}
 		} else if (buffer == "def") {
