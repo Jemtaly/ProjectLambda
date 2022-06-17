@@ -13,10 +13,10 @@
 #endif
 typedef StrInt (*opr)(StrInt const &, StrInt const &);
 typedef bool (*cmp)(StrInt const &, StrInt const &);
-struct Argument {
+struct Arg {
 	std::string exp;
 	bool calculated;
-	Argument(std::string str) : exp(str), calculated(0) {}
+	Arg(std::string str) : exp(str), calculated(0) {}
 };
 static std::map<char, opr> const oprs = {
 	{'+', operator+},
@@ -41,116 +41,13 @@ static std::map<std::string, std::string> const predef = {
 	{"K", "[[$b]]"},
 };
 static std::map<std::string, std::string> lambda;
-static std::vector<Argument *> args;
-size_t operator>>(std::string &str, std::string &buffer) {
-	size_t i = 0;
-	for (; str[i] == ' '; i++)
-		;
-	size_t j = i;
-	for (size_t br = 0; br || i < str.size() && str[i] != ' '; i++)
-		switch (str[i]) {
-		case '(':
-		case '[':
-			br++;
-			break;
-		case ')':
-		case ']':
-			br--;
-			break;
-		}
-	size_t d = i - j;
-	buffer = str.substr(j, d);
-	str = str.substr(i);
-	return d;
-}
-void operator<<(std::string &expression, bool const &calc) {
-	std::string function, argument;
-	if ((expression >> function) == 0) {
-		expression = "()";
-		return;
-	}
-	switch (function[0]) {
-	case '(':
-		function = function.substr(1, function.size() - 2);
-		function << calc;
-		break;
-	case '$': {
-		size_t i;
-		std::stringstream(function.substr(1)) >> i;
-		if (not args[i]->calculated) {
-			args[i]->exp << calc;
-			args[i]->calculated = 1;
-		}
-		function = args[i]->exp;
-		break;
-	}
-	case '&':
-		if (calc)
-			if (auto const &l = lambda.find(function.substr(1)); l != lambda.end()) {
-				function = l->second;
-				function << calc;
-			}
-		break;
-	default:
-		if (auto const &p = predef.find(function); p != predef.end())
-			function = p->second;
-		break;
-	}
-	while (expression >> argument)
-		if (calc && function[0] == '[') {
-			function = function.substr(1, function.size() - 2);
-			std::string temp;
-			for (size_t i = 0, nest = 0; i < function.size(); i++)
-				if (i && function[i - 1] == '$' && function[i] - 'a' == nest)
-					temp += std::to_string(args.size());
-				else {
-					temp += function[i];
-					switch (function[i]) {
-					case '[':
-						nest++;
-						break;
-					case ']':
-						nest--;
-						break;
-					}
-				}
-			args.push_back(new Argument(argument));
-			function = temp;
-			function << calc;
-		} else {
-			argument << calc;
-			size_t i = 0;
-			for (size_t br = 0; br || i < argument.size() && argument[i] != ' '; i++)
-				switch (argument[i]) {
-				case '(':
-				case '[':
-					br++;
-					break;
-				case ')':
-				case ']':
-					br--;
-					break;
-				}
-			if (i < argument.size())
-				argument = '(' + argument + ')';
-			try {
-				if (function.size() == 1 && (oprs.find(function[0]) != oprs.end() || cmps.find(function[0]) != cmps.end()))
-					function += ':' + std::string(StrInt(argument));
-				else if (function[1] == ':')
-					if (auto const &o = oprs.find(function[0]); o != oprs.end())
-						function = (o->second)(argument, function.substr(2));
-					else if (auto const &c = cmps.find(function[0]); c != cmps.end())
-						function = (c->second)(argument, function.substr(2)) ? "[[$b]]" : "[[$a]]";
-					else
-						function += ' ' + argument;
-				else
-					function += ' ' + argument;
-			} catch (std::string str) {
-				function += ' ' + argument;
-			}
-		}
-	expression = function;
-}
+static std::vector<Arg *> args;
+size_t operator>>(std::string &str, std::string &buf);
+void wordexpr(std::string &argu);
+void calcword(std::string &word);
+void calcexpr(std::string &expr);
+void formword(std::string &word);
+void formexpr(std::string &expr);
 int main(int argc, char *argv[]) {
 	bool check_stdin = true, check_stdout = true, check_stderr = true;
 #if defined _WIN32
@@ -176,7 +73,8 @@ int main(int argc, char *argv[]) {
 			std::cerr << std::endl;
 		line >> buffer;
 		if (buffer == "calc") {
-			line << true;
+			calcexpr(line);
+			formexpr(line);
 			for (size_t i = 0; i < args.size(); i++)
 				delete args[i];
 			args.clear();
@@ -184,7 +82,7 @@ int main(int argc, char *argv[]) {
 			std::cout << line << std::endl;
 		} else if (buffer == "def") {
 			if (line >> buffer) {
-				line << false;
+				formexpr(line);
 				lambda[buffer] = line;
 			}
 		} else if (buffer == "del")
@@ -197,4 +95,140 @@ int main(int argc, char *argv[]) {
 			}
 	}
 	return 0;
+}
+size_t operator>>(std::string &str, std::string &buf) {
+	size_t i = 0;
+	for (; str[i] == ' '; i++)
+		;
+	size_t j = i;
+	for (size_t br = 0; br || i < str.size() && str[i] != ' '; i++)
+		switch (str[i]) {
+		case '(':
+		case '[':
+			br++;
+			break;
+		case ')':
+		case ']':
+			br--;
+			break;
+		}
+	size_t d = i - j;
+	buf = str.substr(j, d);
+	str = str.substr(i);
+	return d;
+}
+void wordexpr(std::string &argu) {
+	size_t i = 0;
+	for (size_t br = 0; br || i < argu.size() && argu[i] != ' '; i++)
+		switch (argu[i]) {
+		case '(':
+		case '[':
+			br++;
+			break;
+		case ')':
+		case ']':
+			br--;
+			break;
+		}
+	if (i < argu.size())
+		argu = '(' + argu + ')';
+}
+void calcword(std::string &word) {
+	if (word.front() == '(' and word.back() == ')') {
+		word = word.substr(1, word.size() - 2);
+		calcexpr(word);
+	} else if (word.front() == '#') {
+		size_t i;
+		std::stringstream(word.substr(1)) >> i;
+		if (not args[i]->calculated) {
+			calcword(args[i]->exp);
+			args[i]->calculated = 1;
+		}
+		word = args[i]->exp;
+	} else if (word.front() == '&') {
+		if (auto const &l = lambda.find(word.substr(1)); l != lambda.end()) {
+			word = l->second;
+			calcexpr(word);
+		}
+	} else if (auto const &p = predef.find(word); p != predef.end())
+		word = p->second;
+}
+void calcexpr(std::string &expr) {
+	std::string func, argu;
+	if ((expr >> func) == 0) {
+		expr = "()";
+		return;
+	}
+	calcword(func);
+	while (expr >> argu)
+		if (func.front() == '[' and func.back() == ']') {
+			func = func.substr(1, func.size() - 2);
+			std::string temp;
+			for (size_t i = 0, nest = 0; i < func.size(); i++)
+				if (temp.size() && temp.back() == '$' && func[i] - 'a' == nest) {
+					temp.back() = '#';
+					temp += std::to_string(args.size());
+				} else {
+					temp += func[i];
+					switch (func[i]) {
+					case '[':
+						nest++;
+						break;
+					case ']':
+						nest--;
+						break;
+					}
+				}
+			args.push_back(new Arg(argu));
+			func = temp;
+			calcexpr(func);
+		} else {
+			calcword(argu);
+			wordexpr(argu);
+			try {
+				if (func.size() == 1 && (oprs.find(func.front()) != oprs.end() || cmps.find(func.front()) != cmps.end()))
+					func += ':' + std::string(StrInt(argu));
+				else if (func[1] == ':')
+					if (auto const &o = oprs.find(func.front()); o != oprs.end())
+						func = (o->second)(argu, func.substr(2));
+					else if (auto const &c = cmps.find(func.front()); c != cmps.end())
+						func = (c->second)(argu, func.substr(2)) ? "[[$b]]" : "[[$a]]";
+					else
+						func += ' ' + argu;
+				else
+					func += ' ' + argu;
+			} catch (std::string str) {
+				func += ' ' + argu;
+			}
+		}
+	expr = func;
+}
+void formword(std::string &word) {
+	if (word.front() == '#') {
+		size_t i;
+		std::stringstream(word.substr(1)) >> i;
+		word = args[i]->exp;
+		formword(word);
+	} else if (word.front() == '(' and word.back() == ')') {
+		word = word.substr(1, word.size() - 2);
+		formexpr(word);
+	} else if (word.front() == '[' and word.back() == ']') {
+		word = word.substr(1, word.size() - 2);
+		formexpr(word);
+		word = '[' + word + ']';
+	}
+}
+void formexpr(std::string &expr) {
+	std::string func, argu;
+	if ((expr >> func) == 0) {
+		expr = "()";
+		return;
+	}
+	formword(func);
+	while (expr >> argu) {
+		formword(argu);
+		wordexpr(argu);
+		func += ' ' + argu;
+	}
+	expr = func;
 }
