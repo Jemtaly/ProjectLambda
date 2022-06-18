@@ -30,10 +30,18 @@ Compile the c++ source code, then run it directly from the command line.
 
 ## Examples
 
+### Reverse function application
+
+```
+calc [[$a $b]] 100 (- 50)
+# output: 50
+# explain: [[$a $b]] 100 (- 50) => [$a 100] (- 50) => - 50 100 => -:50 100 => 50
+```
+
 ### Calculating the factorial of 99
 
 ```
-def FACTORIAL [$a $a] [[>:1 $a (* $a ($b $b (-:1 $a))) 1]]
+def FACTORIAL [>:1 $a (* $a (&FACTORIAL (-:1 $a))) 1]
 calc &FACTORIAL 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
@@ -53,7 +61,7 @@ set X 100
 def Y *:2 &X
 calc &Y
 # output: 200
-set X 50
+def X +:25 25
 calc &Y
 # output: 100
 ```
