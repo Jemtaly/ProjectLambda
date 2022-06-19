@@ -37,16 +37,18 @@ Compile the c++ source code, then run it directly from the command line.
 ```
 cal [[$a $b]] 100 (- 50)
 # output: 50
-# [[$a $b]] 100 (- 50) => [$a 100] (- 50) => - 50 100 => -:50 100 => 50
 ```
+
+Explain: `[[$a $b]] 100 (- 50)` => `[$a 100] (- 50)` => `- 50 100` => `-:50 100` => `50`
 
 ### Lazy evaluation
 
 ```
 cal [[$a]] ([$a $a] [$a $a]) ([$a $a] (Hello World))
 # output: Hello World (Hello World)
-# Because of the undecidability of combinatorial calculus, "[$a $a] [$a $a]" will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
 ```
+
+Explain: Because of the undecidability of combinatorial calculus, `[$a $a] [$a $a]` will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
 
 ### Difference between `def` and `set`
 
@@ -63,8 +65,9 @@ cal !Y 2
 # output: 200
 cal &Z 2
 # output: 300
-# "set Y * !X" calculate the formula and set !Y to "*:100", while "def Z * !X" set &Z to literally "* !X", so whenever you call &Z, it will be recalculated, therefore, when "set X + 50 !X" changed the value of !X to 150, the result of "&Z 2" changed to 300.
 ```
+
+Explain: `set Y * !X` calculate the formula and set `!Y` to `*:100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
 
 ### Calculating the factorial of 99 using recursion
 
