@@ -1,235 +1,276 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <sstream>
 #include <string>
 #include <vector>
 #include "strint.hpp"
 #if defined _WIN32
+#include <Windows.h>
 #include <io.h>
-#include <windows.h>
 #elif defined __unix__
 #include <unistd.h>
 #endif
-typedef StrInt (*opr)(StrInt const &, StrInt const &);
-typedef bool (*cmp)(StrInt const &, StrInt const &);
 struct Arg {
-	std::string exp;
-	bool calculated;
-	Arg(std::string str) : exp(str), calculated(0) {}
+	std::string *pstr;
+	bool cal;
+	bool fmt;
+	Arg(std::string const &str):
+		cal(false), fmt(false), pstr(new std::string(str)) {}
+	Arg(Arg &&r):
+		cal(r.cal), fmt(r.fmt), pstr(r.pstr) {
+		r.pstr = nullptr;
+	}
+	~Arg() {
+		delete pstr;
+	}
 };
-static std::map<char, opr> const oprs = {
+static std::vector<Arg> args;
+static std::map<std::string, std::string> defs;
+static std::map<std::string, std::string> sets;
+size_t operator>>(std::string &exp, std::string &sym);
+void expwrp(std::string &exp);
+void symcal(std::string &sym);
+void expcal(std::string &exp);
+void symfmt(std::string &sym, bool substitute);
+void expfmt(std::string &exp, bool substitute);
+int main(int argc, char *argv[]) {
+	bool check_stdin = true, check_stdout = true, check_stderr = true;
+#if defined _WIN32
+	DWORD dwsubstituteTemp;
+	check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwsubstituteTemp);
+	check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwsubstituteTemp);
+	check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwsubstituteTemp);
+#elif defined __unix__
+	check_stdin = isatty(fileno(stdin));
+	check_stdout = isatty(fileno(stdout));
+	check_stderr = isatty(fileno(stderr));
+#endif
+	std::string ps_in, ps_out;
+	if (check_stdin && check_stderr) {
+		ps_in = ">> ";
+	}
+	if (check_stdout && check_stderr) {
+		ps_out = "=> ";
+	}
+	for (bool end = false; !end;) {
+		std::string exp, buf;
+		std::cerr << ps_in;
+		std::getline(std::cin, exp);
+		if ((end = std::cin.eof()) && check_stdin && check_stderr) {
+			std::cerr << std::endl;
+		}
+		exp >> buf;
+		if (buf == "cal") {
+			expcal(exp);
+			expfmt(exp, true);
+			args.clear();
+			sets[""] = exp;
+			std::cerr << ps_out;
+			std::cout << exp << std::endl;
+		} else if (buf == "fmt") {
+			expfmt(exp, false);
+			defs[""] = exp;
+			std::cerr << ps_out;
+			std::cout << exp << std::endl;
+		} else if (buf == "set") {
+			if (exp >> buf) {
+				expcal(exp);
+				expfmt(exp, true);
+				args.clear();
+				sets[buf] = exp;
+			}
+		} else if (buf == "def") {
+			if (exp >> buf) {
+				expfmt(exp, false);
+				defs[buf] = exp;
+			}
+		} else if (buf == "clr") {
+			sets.clear();
+			defs.clear();
+		} else if (buf == "dir") {
+			for (auto const &l : sets) {
+				std::cerr << ps_out;
+				std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
+			}
+			for (auto const &l : defs) {
+				std::cerr << ps_out;
+				std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
+			}
+		}
+	}
+	return 0;
+}
+typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
+typedef bool (*cmp_t)(StrInt const &, StrInt const &);
+static std::map<char, opr_t> const oprs = {
 	{'+', operator+},
 	{'-', operator-},
 	{'*', operator*},
 	{'/', operator/},
 	{'%', operator%},
 };
-static std::map<char, cmp> const cmps = {
+static std::map<char, cmp_t> const cmps = {
 	{'=', operator==},
 	{'>', operator>},
 	{'<', operator<},
 };
-static std::map<std::string, std::string> lambda;
-static std::vector<Arg *> args;
-size_t operator>>(std::string &str, std::string &buf);
-void wordexpr(std::string &argu);
-void calcword(std::string &word);
-void calcexpr(std::string &expr);
-void formword(std::string &word, bool mode);
-void formexpr(std::string &expr, bool mode);
-int main(int argc, char *argv[]) {
-	bool check_stdin = true, check_stdout = true, check_stderr = true;
-#if defined _WIN32
-	DWORD dwModeTemp;
-	check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
-	check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
-	check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
-#elif defined __unix__
-	check_stdin = isatty(fileno(stdin));
-	check_stdout = isatty(fileno(stdout));
-	check_stderr = isatty(fileno(stderr));
-#endif
-	std::string sym_in, sym_out;
-	if (check_stdin && check_stderr)
-		sym_in = ">> ";
-	if (check_stdout && check_stderr)
-		sym_out = "=> ";
-	for (bool end = false; !end;) {
-		std::string line, buffer;
-		std::cerr << sym_in;
-		std::getline(std::cin, line);
-		if ((end = std::cin.eof()) && check_stdin && check_stderr)
-			std::cerr << std::endl;
-		line >> buffer;
-		if (buffer == "calc") {
-			calcexpr(line);
-			formexpr(line, true);
-			for (size_t i = 0; i < args.size(); i++)
-				delete args[i];
-			args.clear();
-			std::cerr << sym_out;
-			std::cout << line << std::endl;
-		} else if (buffer == "set") {
-			if (line >> buffer) {
-				calcexpr(line);
-				formexpr(line, true);
-				for (size_t i = 0; i < args.size(); i++)
-					delete args[i];
-				args.clear();
-				lambda[buffer] = line;
-			}
-		} else if (buffer == "def") {
-			if (line >> buffer) {
-				formexpr(line, false);
-				lambda[buffer] = line;
-			}
-		} else if (buffer == "del")
-			while (line >> buffer)
-				lambda.erase(buffer);
-		else if (buffer == "list")
-			for (auto const &l : lambda) {
-				std::cerr << sym_out;
-				std::cout << std::left << std::setw(9) << (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
-			}
+size_t operator>>(std::string &exp, std::string &sym) {
+	size_t i = 0;
+	while (exp[i] == ' ') {
+		i++;
 	}
-	return 0;
-}
-size_t operator>>(std::string &str, std::string &buf) {
-	size_t i = 0;
-	for (; str[i] == ' '; i++)
-		;
 	size_t j = i;
-	for (size_t br = 0; br || i < str.size() && str[i] != ' '; i++)
-		switch (str[i]) {
+	for (size_t ctr = 0; ctr || i < exp.size() && exp[i] != ' '; i++) {
+		switch (exp[i]) {
 		case '(':
 		case '[':
-			br++;
+			ctr++;
 			break;
 		case ')':
 		case ']':
-			br--;
+			ctr--;
 			break;
 		}
-	size_t d = i - j;
-	buf = str.substr(j, d);
-	str = str.substr(i);
-	return d;
+	}
+	sym = exp.substr(j, i - j);
+	exp = exp.substr(i);
+	return i - j;
 }
-void wordexpr(std::string &argu) {
+void expwrp(std::string &exp) {
 	size_t i = 0;
-	for (size_t br = 0; br || i < argu.size() && argu[i] != ' '; i++)
-		switch (argu[i]) {
+	for (size_t ctr = 0; ctr || i < exp.size() && exp[i] != ' '; i++) {
+		switch (exp[i]) {
 		case '(':
 		case '[':
-			br++;
+			ctr++;
 			break;
 		case ')':
 		case ']':
-			br--;
+			ctr--;
 			break;
 		}
-	if (i < argu.size())
-		argu = '(' + argu + ')';
+	}
+	if (i < exp.size()) {
+		exp = '(' + exp + ')';
+	}
 }
-void calcword(std::string &word) {
-	if (word.front() == '#') {
-		size_t i;
-		std::stringstream(word.substr(1)) >> i;
-		if (not args[i]->calculated) {
-			calcword(args[i]->exp);
-			args[i]->calculated = 1;
+void symcal(std::string &sym) {
+	if (sym.front() == '(') {
+		sym = sym.substr(1, sym.size() - 2);
+		expcal(sym);
+	} else if (sym.front() == '#') {
+		size_t i = std::stoull(sym.substr(1));
+		if (!args[i].cal) {
+			symcal(*args[i].pstr);
+			args[i].cal = true;
 		}
-		word = args[i]->exp;
-	} else if (word.front() == '(' and word.back() == ')') {
-		word = word.substr(1, word.size() - 2);
-		calcexpr(word);
-	} else if (word.front() == '&')
-		if (auto const &l = lambda.find(word.substr(1)); l != lambda.end()) {
-			word = l->second;
-			calcexpr(word);
+		sym = *args[i].pstr;
+	} else if (sym.front() == '!') {
+		auto const &l = sets.find(sym.substr(1));
+		sym = l == sets.end() ? "()" : l->second;
+	} else if (sym.front() == '&') {
+		if (auto const &l = defs.find(sym.substr(1)); l == defs.end()) {
+			sym = "()";
+		} else {
+			sym = l->second;
+			expcal(sym);
 		}
+	}
 }
-void calcexpr(std::string &expr) {
-	std::string func, argu;
-	if ((expr >> func) == 0) {
-		expr = "()";
+void expcal(std::string &exp) {
+	std::string fun, arg;
+	if ((exp >> fun) == 0) {
+		exp = "()";
 		return;
 	}
-	calcword(func);
-	while (expr >> argu)
-		if (func.front() == '[' and func.back() == ']') {
-			func = func.substr(1, func.size() - 2);
-			std::string temp;
-			for (size_t i = 0, nest = 0; i < func.size(); i++)
-				if (temp.size() && temp.back() == '$' && func[i] - 'a' == nest) {
-					temp.back() = '#';
-					temp += std::to_string(args.size());
+	symcal(fun);
+	while (exp >> arg) {
+		if (fun.front() == '[') {
+			fun = fun.substr(1, fun.size() - 2);
+			std::string tmp;
+			for (size_t i = 0, itn = 0; i < fun.size(); i++) {
+				if (tmp.size() && tmp.back() == '$' && fun[i] - 'a' == itn) {
+					tmp.back() = '#';
+					tmp += std::to_string(args.size());
 				} else {
-					temp += func[i];
-					switch (func[i]) {
+					tmp += fun[i];
+					switch (fun[i]) {
 					case '[':
-						nest++;
+						itn++;
 						break;
 					case ']':
-						nest--;
+						itn--;
 						break;
 					}
 				}
-			args.push_back(new Arg(argu));
-			func = temp;
-			calcexpr(func);
+			}
+			args.emplace_back(arg);
+			fun = tmp;
+			expcal(fun);
 		} else {
-			calcword(argu);
-			wordexpr(argu);
+			symcal(arg);
+			expwrp(arg);
 			try {
-				if (func.size() == 1 && (oprs.find(func.front()) != oprs.end() || cmps.find(func.front()) != cmps.end()))
-					func += ':' + std::string(StrInt(argu));
-				else if (func[1] == ':')
-					if (auto const &o = oprs.find(func.front()); o != oprs.end())
-						func = (o->second)(argu, func.substr(2));
-					else if (auto const &c = cmps.find(func.front()); c != cmps.end())
-						func = (c->second)(argu, func.substr(2)) ? "[[$b]]" : "[[$a]]";
-					else
-						func += ' ' + argu;
-				else
-					func += ' ' + argu;
+				if (fun.size() == 1 && (oprs.find(fun.front()) != oprs.end() || cmps.find(fun.front()) != cmps.end())) {
+					fun += ':' + std::string(StrInt(arg));
+				} else if (fun[1] == ':') {
+					if (auto const &o = oprs.find(fun.front()); o != oprs.end()) {
+						fun = (o->second)(arg, fun.substr(2));
+					} else if (auto const &c = cmps.find(fun.front()); c != cmps.end()) {
+						fun = (c->second)(arg, fun.substr(2)) ? "[[$b]]" : "[[$a]]";
+					} else {
+						fun += ' ' + arg;
+					}
+				} else {
+					fun += ' ' + arg;
+				}
 			} catch (std::string str) {
-				func += ' ' + argu;
+				fun += ' ' + arg;
 			}
 		}
-	expr = func;
+	}
+	exp = fun;
 }
-void formword(std::string &word, bool mode) {
-	if (word.front() == '#') {
-		size_t i;
-		std::stringstream(word.substr(1)) >> i;
-		word = args[i]->exp;
-		formword(word, mode);
-	} else if (word.front() == '(' and word.back() == ')') {
-		word = word.substr(1, word.size() - 2);
-		formexpr(word, mode);
-	} else if (word.front() == '[' and word.back() == ']') {
-		word = word.substr(1, word.size() - 2);
-		formexpr(word, mode);
-		word = word == "()" ? "[]" : '[' + word + ']';
-	} else if (mode && word.front() == '&')
-		if (auto const &l = lambda.find(word.substr(1)); l != lambda.end()) {
-			word = l->second;
-			formexpr(word, mode);
+void symfmt(std::string &sym, bool substitute) {
+	if (sym.front() == '(') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+	} else if (sym.front() == '[') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+		sym = sym == "()" ? "[]" : '[' + sym + ']';
+	} else if (substitute) {
+		if (sym.front() == '#') {
+			size_t i = std::stoull(sym.substr(1));
+			if (!args[i].fmt) {
+				(args[i].cal ? expfmt : symfmt)(*args[i].pstr, substitute);
+				args[i].fmt = true;
+			}
+			sym = *args[i].pstr;
+		} else if (sym.front() == '!') {
+			auto const &l = sets.find(sym.substr(1));
+			sym = l == sets.end() ? "()" : l->second;
+		} else if (sym.front() == '&') {
+			if (auto const &l = defs.find(sym.substr(1)); l == defs.end()) {
+				sym = "()";
+			} else {
+				sym = l->second;
+				expfmt(sym, substitute);
+			}
 		}
+	}
 }
-void formexpr(std::string &expr, bool mode) {
-	std::string func, argu;
-	if ((expr >> func) == 0) {
-		expr = "()";
+void expfmt(std::string &exp, bool substitute) {
+	std::string fun, arg;
+	if ((exp >> fun) == 0) {
+		exp = "()";
 		return;
 	}
-	formword(func, mode);
-	while (expr >> argu) {
-		formword(argu, mode);
-		wordexpr(argu);
-		func += ' ' + argu;
+	symfmt(fun, substitute);
+	while (exp >> arg) {
+		symfmt(arg, substitute);
+		expwrp(arg);
+		fun += ' ' + arg;
 	}
-	expr = func;
+	exp = fun;
 }
