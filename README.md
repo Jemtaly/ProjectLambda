@@ -2,9 +2,14 @@
 
 ProjectLambda is a calculator / programming language based on lambda calculus.
 
-## Compiling and Using
+## Compiling and Running
 
-Compile the c++ source code, then run it directly from the command line.
+```
+git clone https://github.com/Jemtaly/ProjectLambda
+cd ProjectLambda
+clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
+./lambda.exe
+```
 
 ## Commands
 
