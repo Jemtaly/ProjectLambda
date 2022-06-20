@@ -40,20 +40,22 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 ### First example
 
 ```
-cal [[$a $b]] 100 (- 50)
-# output: 50
+cal [[$a $b]] world! Hello,
+# output: Hello, world!
 ```
 
-Explain: `[[$a $b]] 100 (- 50)` => `[$a 100] (- 50)` => `- 50 100` => `-:50 100` => `50`
+Computational procedure: `[[$a $b]] world! Hello,` => `[$a world!] Hello,` => `Hello, world!`
 
 ### Lazy evaluation
 
 ```
-cal [[$a]] ([$a $a] [$a $a]) ([$a $a] (Hello World))
-# output: Hello World (Hello World)
+cal [[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)
+# output: 3
 ```
 
 Explain: Because of the undecidability of combinatorial calculus, `[$a $a] [$a $a]` will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
+
+Computational procedure: `[[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)` => `[$a] ([[[$b $a $c]]] 12 / 4)` => `[[[$b $a $c]]] 12 / 4` => `\ 4 12` => `3`
 
 ### Difference between `def` and `set`
 
