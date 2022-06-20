@@ -13,7 +13,7 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 
 ## Commands
 
-| command | usage |
+| instruction | usage |
 | --- | --- |
 | `cal FORMULA` | Calculate the formula. |
 | `cal FORMULA` | Format the formula. |
@@ -24,7 +24,7 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 
 ## Syntax
 
-| syntax | meaning |
+| symbol | meaning |
 | --- | --- |
 | `[...]` | An lambda expression with single argument. |
 | `(...)` | Since applications are assumed to be left associative, you only have to use brackets in case like `f (g a)`, rather than in case like `((f g) b)`. |
@@ -34,6 +34,8 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 | `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., `(5 - 2) / 3` should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
 | `+:n` `-:n` `*:n` `\:n` `%:n` `>:n` `<:n` `=:n` | Equivalent to `+ n` `- n` ... Notice that `n` must be literally a number, not an expression, variable or formal parameter. |
+
+**Note:** The spaces between the above symbols must never be omitted!
 
 ## Examples
 
