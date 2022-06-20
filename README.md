@@ -44,7 +44,7 @@ cal [[$a $b]] world! Hello,
 # output: Hello, world!
 ```
 
-Computational procedure: `[[$a $b]] world! Hello,` => `[$a world!] Hello,` => `Hello, world!`
+**Computational procedure:** `[[$a $b]] world! Hello,` => `[$a world!] Hello,` => `Hello, world!`
 
 ### Lazy evaluation
 
@@ -53,9 +53,9 @@ cal [[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)
 # output: 3
 ```
 
-Explain: Because of the undecidability of combinatorial calculus, `[$a $a] [$a $a]` will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
+**Explain:** Because of the undecidability of combinatorial calculus, `[$a $a] [$a $a]` will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
 
-Computational procedure: `[[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)` => `[$a] ([[[$b $a $c]]] 12 / 4)` => `[[[$b $a $c]]] 12 / 4` => `\ 4 12` => `3`
+**Computational procedure:** `[[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)` => `[$a] ([[[$b $a $c]]] 12 / 4)` => `[[[$b $a $c]]] 12 / 4` => `\ 4 12` => `3`
 
 ### Difference between `def` and `set`
 
@@ -74,7 +74,7 @@ cal &Z 2
 # output: 300
 ```
 
-Explain: `set Y * !X` calculate the formula and set `!Y` to `*:100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
+**Explain:** `set Y * !X` calculate the formula and set `!Y` to `*:100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
 
 ### Calculating the factorial of 99 using recursion
 
