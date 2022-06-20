@@ -27,7 +27,7 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 | symbol | meaning |
 | --- | --- |
 | `[...]` | An lambda expression with single argument. |
-| `(...)` | Since applications are assumed to be left associative, you only have to use brackets in case like `f (g a)`, rather than in case like `((f g) b)`. |
+| `(...)` | Since applications are assumed to be left associative, `f g a` will be interpret to `(f g) a`, rather than `f (g a)`. |
 | `$a` `$b` `...` | Formal parameters, use `$a` for the argument to the innermost lambda expression, use `$b` for the second innermost one, and so on ... Example: `[[$a $b] $a] x` => `[$a x] x` => `x x`. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
