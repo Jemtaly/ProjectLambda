@@ -27,7 +27,7 @@ public:
 			int8_t d = 10;
 			for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
 				if (str[i] < '0' || str[i] > '9') {
-					throw str;
+					throw std::exception();
 				} else {
 					d = '9' - str[i] + (d == 10);
 					abs[j] = d % 10;
@@ -37,7 +37,7 @@ public:
 		} else {
 			for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
 				if (str[i] < '0' || str[i] > '9') {
-					throw str;
+					throw std::exception();
 				} else {
 					abs[j] = str[i] - '0';
 				}
