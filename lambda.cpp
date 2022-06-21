@@ -60,18 +60,18 @@ int main(int argc, char *argv[]) {
 			std::cerr << std::endl;
 		}
 		exp >> buf;
-		if (buf == "cal") {
-			expcal(exp);
-			expfmt(exp, true);
-			args.clear();
-			sets[""] = exp;
-			std::cerr << ps_out;
-			std::cout << exp << std::endl;
-		} else if (buf == "fmt") {
-			expfmt(exp, false);
-			defs[""] = exp;
-			std::cerr << ps_out;
-			std::cout << exp << std::endl;
+		if (buf == "dir") {
+			for (auto const &l : sets) {
+				std::cerr << ps_out;
+				std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
+			}
+			for (auto const &l : defs) {
+				std::cerr << ps_out;
+				std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
+			}
+		} else if (buf == "clr") {
+			sets.clear();
+			defs.clear();
 		} else if (buf == "set") {
 			if (exp >> buf) {
 				expcal(exp);
@@ -84,18 +84,18 @@ int main(int argc, char *argv[]) {
 				expfmt(exp, false);
 				defs[buf] = exp;
 			}
-		} else if (buf == "clr") {
-			sets.clear();
-			defs.clear();
-		} else if (buf == "dir") {
-			for (auto const &l : sets) {
-				std::cerr << ps_out;
-				std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
-			}
-			for (auto const &l : defs) {
-				std::cerr << ps_out;
-				std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second << std::endl;
-			}
+		} else if (buf == "cal") {
+			expcal(exp);
+			expfmt(exp, true);
+			args.clear();
+			sets[""] = exp;
+			std::cerr << ps_out;
+			std::cout << exp << std::endl;
+		} else if (buf == "fmt") {
+			expfmt(exp, false);
+			defs[""] = exp;
+			std::cerr << ps_out;
+			std::cout << exp << std::endl;
 		}
 	}
 	return 0;
@@ -155,10 +155,7 @@ void expwrp(std::string &exp) {
 	}
 }
 void symcal(std::string &sym) {
-	if (sym.front() == '(') {
-		sym = sym.substr(1, sym.size() - 2);
-		expcal(sym);
-	} else if (sym.front() == '#') {
+	if (sym.front() == '#') {
 		size_t i = std::stoull(sym.substr(1));
 		if (!args[i].cal) {
 			symcal(*args[i].pstr);
@@ -175,6 +172,9 @@ void symcal(std::string &sym) {
 			sym = l->second;
 			expcal(sym);
 		}
+	} else if (sym.front() == '(' && sym.back() == ')') {
+		sym = sym.substr(1, sym.size() - 2);
+		expcal(sym);
 	}
 }
 void expcal(std::string &exp) {
@@ -185,7 +185,7 @@ void expcal(std::string &exp) {
 	}
 	symcal(fun);
 	while (exp >> arg) {
-		if (fun.front() == '[') {
+		if (fun.front() == '[' && fun.back() == ']') {
 			fun = fun.substr(1, fun.size() - 2);
 			std::string tmp;
 			for (size_t i = 0, itn = 0; i < fun.size(); i++) {
@@ -210,21 +210,25 @@ void expcal(std::string &exp) {
 		} else {
 			symcal(arg);
 			expwrp(arg);
-			try {
-				if (fun.size() == 1 && (oprs.find(fun.front()) != oprs.end() || cmps.find(fun.front()) != cmps.end())) {
-					fun += ':' + std::string(StrInt(arg));
-				} else if (fun[1] == ':') {
-					if (auto const &o = oprs.find(fun.front()); o != oprs.end()) {
+			if (fun.size() == 1 && (oprs.find(fun.front()) != oprs.end() || cmps.find(fun.front()) != cmps.end())) {
+				fun += ':' + arg;
+			} else if (fun[1] == ':') {
+				if (auto const &o = oprs.find(fun.front()); o != oprs.end()) {
+					try {
 						fun = (o->second)(arg, fun.substr(2));
-					} else if (auto const &c = cmps.find(fun.front()); c != cmps.end()) {
+					} catch (...) {
+						fun += ' ' + arg;
+					}
+				} else if (auto const &c = cmps.find(fun.front()); c != cmps.end()) {
+					try {
 						fun = (c->second)(arg, fun.substr(2)) ? "[[$b]]" : "[[$a]]";
-					} else {
+					} catch (...) {
 						fun += ' ' + arg;
 					}
 				} else {
 					fun += ' ' + arg;
 				}
-			} catch (std::string str) {
+			} else {
 				fun += ' ' + arg;
 			}
 		}
@@ -232,14 +236,7 @@ void expcal(std::string &exp) {
 	exp = fun;
 }
 void symfmt(std::string &sym, bool substitute) {
-	if (sym.front() == '(') {
-		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
-	} else if (sym.front() == '[') {
-		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
-		sym = sym == "()" ? "[]" : '[' + sym + ']';
-	} else if (substitute) {
+	if (substitute) {
 		if (sym.front() == '#') {
 			size_t i = std::stoull(sym.substr(1));
 			if (!args[i].fmt) {
@@ -258,6 +255,13 @@ void symfmt(std::string &sym, bool substitute) {
 				expfmt(sym, substitute);
 			}
 		}
+	} else if (sym.front() == '(' && sym.back() == ')') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+	} else if (sym.front() == '[' && sym.back() == ']') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+		sym = sym == "()" ? "[]" : '[' + sym + ']';
 	}
 }
 void expfmt(std::string &exp, bool substitute) {
