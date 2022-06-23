@@ -36,10 +36,10 @@ void expfmt(std::string &exp, bool substitute);
 int main(int argc, char *argv[]) {
 	bool check_stdin = true, check_stdout = true, check_stderr = true;
 #if defined _WIN32
-	DWORD dwsubstituteTemp;
-	check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwsubstituteTemp);
-	check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwsubstituteTemp);
-	check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwsubstituteTemp);
+	DWORD dwModeTemp;
+	check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
+	check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
+	check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
 #elif defined __unix__
 	check_stdin = isatty(fileno(stdin));
 	check_stdout = isatty(fileno(stdout));
