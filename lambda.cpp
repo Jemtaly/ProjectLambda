@@ -155,7 +155,10 @@ void expwrp(std::string &exp) {
 	}
 }
 void symcal(std::string &sym) {
-	if (sym.front() == '#') {
+	if (sym.front() == '(' && sym.back() == ')') {
+		sym = sym.substr(1, sym.size() - 2);
+		expcal(sym);
+	} else if (sym.front() == '#') {
 		size_t i = std::stoull(sym.substr(1));
 		if (!args[i].cal) {
 			symcal(*args[i].pstr);
@@ -172,9 +175,6 @@ void symcal(std::string &sym) {
 			sym = l->second;
 			expcal(sym);
 		}
-	} else if (sym.front() == '(' && sym.back() == ')') {
-		sym = sym.substr(1, sym.size() - 2);
-		expcal(sym);
 	}
 }
 void expcal(std::string &exp) {
@@ -236,7 +236,14 @@ void expcal(std::string &exp) {
 	exp = fun;
 }
 void symfmt(std::string &sym, bool substitute) {
-	if (substitute) {
+	if (sym.front() == '(' && sym.back() == ')') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+	} else if (sym.front() == '[' && sym.back() == ']') {
+		sym = sym.substr(1, sym.size() - 2);
+		expfmt(sym, substitute);
+		sym = sym == "()" ? "[]" : '[' + sym + ']';
+	} else if (substitute) {
 		if (sym.front() == '#') {
 			size_t i = std::stoull(sym.substr(1));
 			if (!args[i].fmt) {
@@ -255,13 +262,6 @@ void symfmt(std::string &sym, bool substitute) {
 				expfmt(sym, substitute);
 			}
 		}
-	} else if (sym.front() == '(' && sym.back() == ')') {
-		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
-	} else if (sym.front() == '[' && sym.back() == ']') {
-		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
-		sym = sym == "()" ? "[]" : '[' + sym + ']';
 	}
 }
 void expfmt(std::string &exp, bool substitute) {
