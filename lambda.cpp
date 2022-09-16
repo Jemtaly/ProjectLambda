@@ -45,13 +45,8 @@ int main(int argc, char *argv[]) {
 	check_stdout = isatty(fileno(stdout));
 	check_stderr = isatty(fileno(stderr));
 #endif
-	std::string ps_in, ps_out;
-	if (check_stdin && check_stderr) {
-		ps_in = ">> ";
-	}
-	if (check_stdout && check_stderr) {
-		ps_out = "=> ";
-	}
+	std::string ps_in = check_stderr && check_stdin ? ">> " : "";
+	std::string ps_out = check_stderr && check_stdout ? "=> " : "";
 	for (bool end = false; !end;) {
 		std::string exp, buf;
 		std::cerr << ps_in;
