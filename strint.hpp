@@ -46,6 +46,9 @@ public:
 			}
 			abs[len] = 0;
 		}
+		while (len && abs[len - 1] == abs[len]) {
+			len--;
+		}
 	}
 	operator std::string() const {
 		if (abs[len]) {

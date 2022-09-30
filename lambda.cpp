@@ -31,8 +31,10 @@ size_t operator>>(std::string &exp, std::string &sym);
 void expwrp(std::string &exp);
 void symcal(std::string &sym);
 void expcal(std::string &exp);
-void symfmt(std::string &sym, bool substitute);
-void expfmt(std::string &exp, bool substitute);
+template <bool substitute>
+void symfmt(std::string &sym);
+template <bool substitute>
+void expfmt(std::string &exp);
 int main(int argc, char *argv[]) {
 	bool check_stdin = true, check_stdout = true, check_stderr = true;
 #if defined _WIN32
@@ -70,24 +72,24 @@ int main(int argc, char *argv[]) {
 		} else if (buf == "set") {
 			if (exp >> buf) {
 				expcal(exp);
-				expfmt(exp, true);
+				expfmt<true>(exp);
 				args.clear();
 				sets[buf] = exp;
 			}
 		} else if (buf == "def") {
 			if (exp >> buf) {
-				expfmt(exp, false);
+				expfmt<false>(exp);
 				defs[buf] = exp;
 			}
 		} else if (buf == "cal") {
 			expcal(exp);
-			expfmt(exp, true);
+			expfmt<true>(exp);
 			args.clear();
 			sets[""] = exp;
 			std::cerr << ps_out;
 			std::cout << exp << std::endl;
 		} else if (buf == "fmt") {
-			expfmt(exp, false);
+			expfmt<false>(exp);
 			defs[""] = exp;
 			std::cerr << ps_out;
 			std::cout << exp << std::endl;
@@ -230,19 +232,20 @@ void expcal(std::string &exp) {
 	}
 	exp = fun;
 }
-void symfmt(std::string &sym, bool substitute) {
+template <bool substitute>
+void symfmt(std::string &sym) {
 	if (sym.front() == '(' && sym.back() == ')') {
 		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
+		expfmt<substitute>(sym);
 	} else if (sym.front() == '[' && sym.back() == ']') {
 		sym = sym.substr(1, sym.size() - 2);
-		expfmt(sym, substitute);
+		expfmt<substitute>(sym);
 		sym = sym == "()" ? "[]" : '[' + sym + ']';
 	} else if (substitute) {
 		if (sym.front() == '#') {
 			size_t i = std::stoull(sym.substr(1));
 			if (!args[i].fmt) {
-				(args[i].cal ? expfmt : symfmt)(*args[i].pstr, substitute);
+				(args[i].cal ? expfmt<substitute> : symfmt<substitute>)(*args[i].pstr);
 				args[i].fmt = true;
 			}
 			sym = *args[i].pstr;
@@ -254,20 +257,21 @@ void symfmt(std::string &sym, bool substitute) {
 				sym = "()";
 			} else {
 				sym = l->second;
-				expfmt(sym, substitute);
+				expfmt<substitute>(sym);
 			}
 		}
 	}
 }
-void expfmt(std::string &exp, bool substitute) {
+template <bool substitute>
+void expfmt(std::string &exp) {
 	std::string fun, arg;
 	if ((exp >> fun) == 0) {
 		exp = "()";
 		return;
 	}
-	symfmt(fun, substitute);
+	symfmt<substitute>(fun);
 	while (exp >> arg) {
-		symfmt(arg, substitute);
+		symfmt<substitute>(arg);
 		expwrp(arg);
 		fun += ' ' + arg;
 	}
