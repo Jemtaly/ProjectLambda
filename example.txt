@@ -1,11 +1,1 @@
-def ! [$a $a] [[>:1 $a (* $a ($b $b (-:1 $a))) 1]]
-def SQR [$a $a] [[[> $a (* $b $b) (-:1 $b) ($c $c (+:1 $b) $a)]]] 0
-def GCD [$a $a] [[[=:0 $a $b ($c $c $a (% $a $b))]]]
-def FIB [$a $a] [[[[=:0 $a $c ($d $d (+ $b $c) $c (-:1 $a))]]]] 0 1
-def FACT [$a $a] [[[=:0 (% $b $a) (= $b $a $b ($c $c 2 (/ $b $a) $b)) ($c $c (+:1 $b) $a)]]] 2
-def BASE [[$a $a] [[< $c $a $a ($b $b (/ $c $a) (% $c $a))]]]
-def POW [[$a $a] [[>:0 $a (>:1 $a (* ([* $a $a] ($b $b (/:2 $a))) ($b $b (%:2 $a))) $c) 1]]]
-def LOG [[$a $a] [[>:1 $a (+:1 ($b $b (/ $c $a))) 0]]]
-def AREA [[[[&SQR (* $a (* (- $b $a) (* (- $c $a) (- $d $a))))] (/:2 (+ $a (+ $b $c)))]]]
-def FOR [$a $a] [[[>:0 $b [$b ($d $d (-:1 $c) $b $a)] [$a]]]]
-def EAT [$a $a] [[$b $b]]
+
