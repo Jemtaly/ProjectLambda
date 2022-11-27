@@ -6,7 +6,6 @@
 #include "strint.hpp"
 #if defined _WIN32
 #include <Windows.h>
-#include <io.h>
 #elif defined __unix__
 #include <unistd.h>
 #endif
@@ -208,25 +207,25 @@ void expcal(std::string &exp) {
 			symcal(arg);
 			expwrp(arg);
 			if (fun.size() == 1 && (oprs.find(fun.front()) != oprs.end() || cmps.find(fun.front()) != cmps.end())) {
-				fun += ':' + arg;
+				(fun += ':') += arg;
 			} else if (fun[1] == ':') {
 				if (auto const &o = oprs.find(fun.front()); o != oprs.end()) {
 					try {
 						fun = (o->second)(arg, fun.substr(2));
 					} catch (...) {
-						fun += ' ' + arg;
+						(fun += ' ') += arg;
 					}
 				} else if (auto const &c = cmps.find(fun.front()); c != cmps.end()) {
 					try {
 						fun = (c->second)(arg, fun.substr(2)) ? "[[$b]]" : "[[$a]]";
 					} catch (...) {
-						fun += ' ' + arg;
+						(fun += ' ') += arg;
 					}
 				} else {
-					fun += ' ' + arg;
+					(fun += ' ') += arg;
 				}
 			} else {
-				fun += ' ' + arg;
+				(fun += ' ') += arg;
 			}
 		}
 	}
@@ -273,7 +272,7 @@ void expfmt(std::string &exp) {
 	while (exp >> arg) {
 		symfmt<substitute>(arg);
 		expwrp(arg);
-		fun += ' ' + arg;
+		(fun += ' ') += arg;
 	}
 	exp = fun;
 }
