@@ -33,7 +33,7 @@ clang++ lambda.cpp -std=c++2a -Os -o lambda.exe
 | `!VAR` | Call the function/variable defined by `set` instruction. |
 | `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., `(5 - 2) / 3` should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
-| `+:n` `-:n` `*:n` `\:n` `%:n` `>:n` `<:n` `=:n` | Equivalent to `+ n` `- n` ... Notice that `n` must be literally a number, not an expression, variable or formal parameter. |
+| `+:n` `-:n` `*:n` `\:n` `%:n` `>:n` `<:n` `=:n` | Equivalent to `+ n` `- n` ... Notice that `n` must be literally a number, not an expression, variable or formal parameter. ***(Deprecated, now they only appear in the calculation results)*** |
 
 **Note:** The spaces between the above symbols must never be omitted!
 
@@ -81,7 +81,7 @@ cal &Z 2
 ### Calculating the factorial of 99 using recursion
 
 ```
-def FACTORIAL [>:0 $a (* $a (&FACTORIAL (-:1 $a))) 1]
+def FACTORIAL [> 0 $a (* $a (&FACTORIAL (- 1 $a))) 1]
 cal &FACTORIAL 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
