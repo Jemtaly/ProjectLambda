@@ -4,30 +4,86 @@
 class StrInt {
 	size_t len;
 	int8_t *abs;
+	size_t *ctr;
+	auto const &get(size_t const &i) const {
+		return abs[i < len ? i : len];
+	}
+	/*
 	StrInt(size_t const &rlen, int8_t *const &rabs):
 		len(rlen), abs(rabs) {
 		while (len && abs[len - 1] == abs[len]) {
 			len--;
 		}
 	}
-	auto const &get(size_t const &i) const {
-		return abs[i < len ? i : len];
+	*/
+	StrInt(size_t const &rlen, int8_t *const &rabs):
+		len(rlen), abs(rabs), ctr(new size_t(1)) {
+		while (len && abs[len - 1] == abs[len]) {
+			len--;
+		}
 	}
 public:
+	/*
+	StrInt(StrInt const &rval):
+		len(rval.len), abs(new int8_t[rval.len + 1]) {
+		for (size_t i = 0; i <= rval.len; i++) {
+			abs[i] = rval.abs[i];
+		}
+	}
 	StrInt(StrInt &&rval):
-		len(rval.len), abs(rval.abs) {
-		rval.abs = nullptr;
+		len(-1), abs(nullptr) {
+		std::swap(len, rval.len);
+		std::swap(abs, rval.abs);
+	}
+	StrInt &operator=(StrInt const &rval) {
+		if (&rval != this) {
+			delete[] abs;
+			len = rval.len;
+			abs = new int8_t[rval.len + 1];
+			for (size_t i = 0; i <= rval.len; i++) {
+				abs[i] = rval.abs[i];
+			}
+		}
+		return *this;
+	}
+	StrInt &operator=(StrInt &&rval) {
+		std::swap(len, rval.len);
+		std::swap(abs, rval.abs);
+		return *this;
 	}
 	~StrInt() {
 		delete[] abs;
 	}
+	*/
+	StrInt(StrInt const &rval):
+		len(rval.len), abs(rval.abs), ctr(rval.ctr) {
+		++*ctr;
+	}
+	StrInt &operator=(StrInt const &rval) {
+		++*rval.ctr;
+		if (--*ctr == 0) {
+			delete[] abs;
+			delete ctr;
+		}
+		len = rval.len;
+		abs = rval.abs;
+		ctr = rval.ctr;
+		return *this;
+	}
+	~StrInt() {
+		if (--*ctr == 0) {
+			delete[] abs;
+			delete ctr;
+		}
+	}
 	StrInt(std::string const &str):
-		len(str.size() - (str[0] == '+' || str[0] == '-')), abs(new int8_t[len + 1]) {
+		len(str.size() - (str[0] == '+' || str[0] == '-')), abs(new int8_t[len + 1]), ctr(new size_t(1)) {
 		if (str[0] == '-') {
 			int8_t d = 10;
 			for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
 				if (str[i] < '0' || str[i] > '9') {
 					delete[] abs;
+					delete ctr;
 					throw std::exception();
 				} else {
 					d = '9' - str[i] + (d == 10);
@@ -39,6 +95,7 @@ public:
 			for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
 				if (str[i] < '0' || str[i] > '9') {
 					delete[] abs;
+					delete ctr;
 					throw std::exception();
 				} else {
 					abs[j] = str[i] - '0';
@@ -81,7 +138,8 @@ public:
 	friend inline StrInt operator+(StrInt const &, StrInt const &);
 	friend inline StrInt operator-(StrInt const &, StrInt const &);
 	friend inline StrInt operator*(StrInt const &, StrInt const &);
-	friend inline StrInt divmod(StrInt const &, StrInt const &, bool const &);
+	template <bool>
+	friend inline StrInt divmod(StrInt const &, StrInt const &);
 	friend inline StrInt operator/(StrInt const &, StrInt const &);
 	friend inline StrInt operator%(StrInt const &, StrInt const &);
 	friend inline bool operator>(StrInt const &, StrInt const &);
@@ -124,7 +182,8 @@ StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
 	}
 	return StrInt(len, abs);
 }
-StrInt divmod(StrInt const &lhs, StrInt const &rhs, bool const &select) {
+template <bool select>
+StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 	size_t len = lhs.len + rhs.len;
 	int8_t *pabs = new int8_t[len + 1], *tabs = new int8_t[len + 1];
 	int8_t *qabs = new int8_t[lhs.len + 1], *rabs = new int8_t[rhs.len + 1];
@@ -189,10 +248,10 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs, bool const &select) {
 	}
 }
 StrInt operator/(StrInt const &lhs, StrInt const &rhs) {
-	return divmod(lhs, rhs, 0);
+	return divmod<0>(lhs, rhs);
 }
 StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
-	return divmod(lhs, rhs, 1);
+	return divmod<1>(lhs, rhs);
 }
 bool operator>(StrInt const &lhs, StrInt const &rhs) {
 	if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
