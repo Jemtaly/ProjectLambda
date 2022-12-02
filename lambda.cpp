@@ -21,9 +21,9 @@ static std::map<char, opr_t> const oprs = {
 	{'%', operator%},
 };
 static std::map<char, cmp_t> const cmps = {
-	{'=', operator==},
 	{'>', operator>},
 	{'<', operator<},
+	{'=', operator==},
 };
 size_t operator>>(std::string &exp, std::string &sym) {
 	size_t i = 0;
@@ -97,7 +97,7 @@ public:
 				return MyExpr('c', c->first);
 			} else {
 				try {
-					return MyExpr('i', StrInt(sym));
+					return MyExpr('i', StrInt::from_string(sym));
 				} catch (...) {
 					return MyExpr('s', sym);
 				}
@@ -168,7 +168,7 @@ public:
 					}
 				}
 			}
-		}
+		} break;
 		}
 		done = true;
 	}
@@ -178,15 +178,15 @@ public:
 		case 's':
 			return std::get<std::string>(data);
 		case 'i':
-			return std::string(std::get<StrInt>(data));
+			return std::get<StrInt>(data).to_string();
 		case 'o':
 			return std::string{std::get<char>(data)};
 		case 'c':
 			return std::string{std::get<char>(data)};
 		case 'O':
-			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::string(std::get<std::pair<char, StrInt>>(data).second);
+			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::get<std::pair<char, StrInt>>(data).second.to_string();
 		case 'C':
-			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::string(std::get<std::pair<char, StrInt>>(data).second);
+			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::get<std::pair<char, StrInt>>(data).second.to_string();
 		case '$':
 			return std::string{'$', std::get<char>(data)};
 		case '&':

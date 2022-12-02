@@ -211,13 +211,13 @@ void expcal(std::string &exp) {
 			} else if (fun[1] == ':') {
 				if (auto const &o = oprs.find(fun.front()); o != oprs.end()) {
 					try {
-						fun = (o->second)(arg, fun.substr(2));
+						fun = (o->second)(StrInt::from_string(arg), StrInt::from_string(fun.substr(2))).to_string();
 					} catch (...) {
 						(fun += ' ') += arg;
 					}
 				} else if (auto const &c = cmps.find(fun.front()); c != cmps.end()) {
 					try {
-						fun = (c->second)(arg, fun.substr(2)) ? "[[$b]]" : "[[$a]]";
+						fun = (c->second)(StrInt::from_string(arg), StrInt::from_string(fun.substr(2))) ? "[[$b]]" : "[[$a]]";
 					} catch (...) {
 						(fun += ' ') += arg;
 					}
