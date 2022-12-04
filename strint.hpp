@@ -37,7 +37,7 @@ public:
 		}
 	}
 	static StrInt from_string(std::string const &str) {
-		size_t len = str.size() - (str[0] == '+' || str[0] == '-'); 
+		size_t len = str.size() - (str[0] == '+' || str[0] == '-');
 		int8_t *abs = new int8_t[len + 1];
 		if (str[0] == '-') {
 			int8_t d = 10;
@@ -130,7 +130,7 @@ StrInt operator-(StrInt const &lhs, StrInt const &rhs) {
 }
 StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
 	size_t len = lhs.len + rhs.len + 1;
-	int8_t *abs = new int8_t[len + 1]{};
+	int8_t *abs = new int8_t[len + 1]();
 	for (size_t i = 0; i <= len; i++) {
 		int8_t p = 0, s = 0;
 		for (size_t j = 0; i + j <= len; j++) {
@@ -144,8 +144,9 @@ StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
 template <bool select>
 StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 	size_t len = lhs.len + rhs.len;
-	int8_t *pabs = new int8_t[len + 1], *tabs = new int8_t[len + 1];
-	int8_t *qabs = new int8_t[lhs.len + 1], *rabs = new int8_t[rhs.len + 1];
+	int8_t *pabs = new int8_t[len + 1], *nabs = new int8_t[len + 1];
+	int8_t *qabs = new int8_t[lhs.len + 1];
+	int8_t *rabs = new int8_t[rhs.len + 1];
 	for (size_t i = 0; i <= len; i++) {
 		pabs[i] = lhs.get(i);
 	}
@@ -158,14 +159,14 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 				int8_t d = 0;
 				for (size_t j = 0; i + j <= len; j++) {
 					d = pabs[i + j] - rhs.get(j) - (d < 0);
-					tabs[i + j] = d < 0 ? d + 10 : d;
+					nabs[i + j] = d < 0 ? d + 10 : d;
 				}
-				if (tabs[len] != pabs[len]) {
+				if (nabs[len] != pabs[len]) {
 					break;
 				}
 				qabs[i]++;
 				for (size_t j = 0; i + j <= len; j++) {
-					pabs[i + j] = tabs[i + j];
+					pabs[i + j] = nabs[i + j];
 				}
 			}
 		}
@@ -181,23 +182,23 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 				int8_t s = 0;
 				for (size_t j = 0; i + j <= len; j++) {
 					s = pabs[i + j] + rhs.get(j) + (s >= 10);
-					tabs[i + j] = s >= 10 ? s - 10 : s;
+					nabs[i + j] = s >= 10 ? s - 10 : s;
 				}
-				if (tabs[len] != pabs[len]) {
+				if (nabs[len] != pabs[len]) {
 					break;
 				}
 				qabs[i]--;
 				for (size_t j = 0; i + j <= len; j++) {
-					pabs[i + j] = tabs[i + j];
+					pabs[i + j] = nabs[i + j];
 				}
 			}
 		}
 		for (size_t i = 0; i <= rhs.len; i++) {
-			rabs[i] = tabs[i];
+			rabs[i] = nabs[i];
 		}
 	}
 	delete[] pabs;
-	delete[] tabs;
+	delete[] nabs;
 	if (select) {
 		delete[] qabs;
 		return StrInt(rhs.len, rabs);

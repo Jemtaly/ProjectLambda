@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 #include <variant>
-#include <vector>
+#include "node.hpp"
 #include "strint.hpp"
 #if defined _WIN32
 #include <Windows.h>
@@ -47,17 +47,18 @@ size_t operator>>(std::string &exp, std::string &sym) {
 	exp = exp.substr(i);
 	return i - j;
 }
-class MyExpr;
-static std::map<std::string, MyExpr> defs;
-static std::map<std::string, MyExpr> sets;
-class MyExpr {
+class Expr;
+static std::map<std::string, Expr> defs;
+static std::map<std::string, Expr> sets;
+class Expr {
 	char type;
 	bool done;
-	std::variant<std::vector<MyExpr>, std::shared_ptr<MyExpr>, char, StrInt, std::pair<char, StrInt>, std::string> data;
+	std::variant<Node<std::pair<Expr, Expr>>, Node<Expr>, std::shared_ptr<Expr>, char, std::pair<char, StrInt>, StrInt, std::string> data;
+	friend Node<Expr>;
 	template <typename T>
-	MyExpr(char type, T &&data):
+	Expr(char type, T &&data):
 		type(type), done(false), data(data) {}
-	void apply(std::shared_ptr<MyExpr> const &ptr, char c = 'a') {
+	void apply(std::shared_ptr<Expr> const &ptr, char c = 'a') {
 		switch (type) {
 		case '$':
 			if (std::get<char>(data) == c) {
@@ -66,57 +67,56 @@ class MyExpr {
 			}
 			break;
 		case '^':
-			std::get<std::vector<MyExpr>>(data)[0].apply(ptr, c + 1);
+			std::get<Node<Expr>>(data)->apply(ptr, c + 1);
 			break;
 		case '|':
-			std::get<std::vector<MyExpr>>(data)[0].apply(ptr, c);
-			std::get<std::vector<MyExpr>>(data)[1].apply(ptr, c);
+			std::get<Node<std::pair<Expr, Expr>>>(data)->first.apply(ptr, c);
+			std::get<Node<std::pair<Expr, Expr>>>(data)->second.apply(ptr, c);
 			break;
 		}
 	}
 public:
-	static MyExpr parse(std::string &exp) {
+	static Expr parse(std::string &exp) {
 		std::string sym;
 		if (0 == exp >> sym) {
-			return MyExpr('s', "NULL");
+			return Expr('s', "NULL");
 		}
 		auto res = [&]() {
 			if (sym.front() == '$' && sym.size() == 2) {
-				return MyExpr('$', sym.back());
+				return Expr('$', sym.back());
 			} else if (sym.front() == '&') {
-				return MyExpr('&', sym.substr(1));
+				return Expr('&', sym.substr(1));
 			} else if (sym.front() == '!') {
-				return MyExpr('!', sym.substr(1));
+				return Expr('!', sym.substr(1));
 			} else if (sym.front() == '(' && sym.back() == ')') {
 				return parse(sym = sym.substr(1, sym.size() - 2));
 			} else if (sym.front() == '[' && sym.back() == ']') {
-				return MyExpr('^', std::vector<MyExpr>{parse(sym = sym.substr(1, sym.size() - 2))});
+				return Expr('^', Node<Expr>::make(parse(sym = sym.substr(1, sym.size() - 2))));
 			} else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
-				return MyExpr('o', o->first);
+				return Expr('o', o->first);
 			} else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
-				return MyExpr('c', c->first);
+				return Expr('c', c->first);
 			} else {
 				try {
-					return MyExpr('i', StrInt::from_string(sym));
+					return Expr('i', StrInt::from_string(sym));
 				} catch (...) {
-					return MyExpr('s', sym);
+					return Expr('s', sym);
 				}
 			}
 		}();
 		while (exp >> sym) {
-			res = MyExpr('|', std::vector<MyExpr>{res, parse(sym)});
+			res = Expr('|', Node<std::pair<Expr, Expr>>::make(std::move(res), parse(sym)));
 		}
 		return res;
 	}
 	void calculate() {
 		switch (type) {
 		case '#': {
-			auto const &tmp = std::get<std::shared_ptr<MyExpr>>(data);
+			auto tmp = std::get<std::shared_ptr<Expr>>(data);
 			if (not tmp->done) {
 				tmp->calculate();
 			}
-			auto mem = *tmp;
-			*this = std::move(mem);
+			*this = *tmp;
 		} break;
 		case '!': {
 			auto const &tmp = sets.find(std::get<std::string>(data));
@@ -138,13 +138,13 @@ public:
 			}
 		} break;
 		case '|': {
-			auto &l = std::get<std::vector<MyExpr>>(data)[0];
-			auto &r = std::get<std::vector<MyExpr>>(data)[1];
+			auto &l = std::get<Node<std::pair<Expr, Expr>>>(data)->first;
+			auto &r = std::get<Node<std::pair<Expr, Expr>>>(data)->second;
 			l.calculate();
 			if (l.type == '^') {
-				auto mem = std::move(std::get<std::vector<MyExpr>>(l.data)[0]);
-				mem.apply(std::make_shared<MyExpr>(std::move(r)));
-				*this = std::move(mem);
+				auto nod = std::move(std::get<Node<Expr>>(l.data));
+				nod->apply(std::make_shared<Expr>(std::move(r)));
+				*this = std::move(*nod);
 				calculate();
 			} else {
 				r.calculate();
@@ -162,8 +162,8 @@ public:
 					case 'C':
 						type = '^';
 						data = cmps.at(std::get<std::pair<char, StrInt>>(l.data).first)(std::get<StrInt>(r.data), std::get<std::pair<char, StrInt>>(l.data).second)
-							 ? std::vector<MyExpr>{MyExpr('^', std::vector<MyExpr>{MyExpr('$', 'b')})}
-							 : std::vector<MyExpr>{MyExpr('^', std::vector<MyExpr>{MyExpr('$', 'a')})};
+							 ? Node<Expr>::make('^', Node<Expr>::make('$', 'b'))
+							 : Node<Expr>::make('^', Node<Expr>::make('$', 'a'));
 						break;
 					}
 				}
@@ -194,11 +194,11 @@ public:
 		case '!':
 			return "!" + std::get<std::string>(data);
 		case '^':
-			return "[" + std::get<std::vector<MyExpr>>(data)[0].translate() + "]";
+			return "[" + std::get<Node<Expr>>(data)->translate() + "]";
 		case '|':
-			return (par ? "(" : "") + std::get<std::vector<MyExpr>>(data)[0].translate<0>() + " " + std::get<std::vector<MyExpr>>(data)[1].translate<1>() + (par ? ")" : "");
+			return (par ? "(" : "") + std::get<Node<std::pair<Expr, Expr>>>(data)->first.translate<0>() + " " + std::get<Node<std::pair<Expr, Expr>>>(data)->second.translate<1>() + (par ? ")" : "");
 		case '#':
-			return std::get<std::shared_ptr<MyExpr>>(data)->translate();
+			return std::get<std::shared_ptr<Expr>>(data)->translate();
 		}
 	}
 };
@@ -238,23 +238,23 @@ int main(int argc, char *argv[]) {
 			defs.clear();
 		} else if (buf == "set") {
 			if (exp >> buf) {
-				auto tmp = MyExpr::parse(exp);
+				auto tmp = Expr::parse(exp);
 				tmp.calculate();
 				sets.insert_or_assign(buf, std::move(tmp));
 			}
 		} else if (buf == "def") {
 			if (exp >> buf) {
-				auto tmp = MyExpr::parse(exp);
+				auto tmp = Expr::parse(exp);
 				defs.insert_or_assign(buf, std::move(tmp));
 			}
 		} else if (buf == "cal") {
-			auto tmp = MyExpr::parse(exp);
+			auto tmp = Expr::parse(exp);
 			tmp.calculate();
 			std::cerr << ps_out;
 			std::cout << tmp.translate() << std::endl;
 			sets.insert_or_assign("", std::move(tmp));
 		} else if (buf == "fmt") {
-			auto tmp = MyExpr::parse(exp);
+			auto tmp = Expr::parse(exp);
 			std::cerr << ps_out;
 			std::cout << tmp.translate() << std::endl;
 			defs.insert_or_assign("", std::move(tmp));
