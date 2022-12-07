@@ -9,7 +9,7 @@ public:
 	Node(Node const &other):
 		data(other.data ? new T(*other.data) : nullptr) {}
 	Node(Node &&other):
-		data(other.data ? other.data : nullptr) {
+		data(other.data) {
 		other.data = nullptr;
 	}
 	Node &operator=(std::nullptr_t) {
@@ -27,7 +27,7 @@ public:
 	Node &operator=(Node &&other) {
 		if (this != &other) {
 			delete data;
-			data = other.data ? other.data : nullptr;
+			data = other.data;
 			other.data = nullptr;
 		}
 		return *this;
