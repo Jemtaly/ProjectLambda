@@ -151,11 +151,8 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 		pabs[i] = lhs.get(i);
 	}
 	if (lhs.abs[lhs.len] == rhs.abs[rhs.len]) {
-		for (size_t i = 0; i <= lhs.len; i++) {
-			qabs[i] = 0;
-		}
 		for (size_t i = lhs.len; i != -1; i--) {
-			for (;;) {
+			for (qabs[i] = 0;; qabs[i]++) {
 				int8_t d = 0;
 				for (size_t j = 0; i + j <= len; j++) {
 					d = pabs[i + j] - rhs.get(j) - (d < 0);
@@ -164,7 +161,6 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 				if (nabs[len] != pabs[len]) {
 					break;
 				}
-				qabs[i]++;
 				for (size_t j = 0; i + j <= len; j++) {
 					pabs[i + j] = nabs[i + j];
 				}
@@ -174,11 +170,8 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 			rabs[i] = pabs[i];
 		}
 	} else {
-		for (size_t i = 0; i <= lhs.len; i++) {
-			qabs[i] = 9;
-		}
 		for (size_t i = lhs.len; i != -1; i--) {
-			for (;;) {
+			for (qabs[i] = 9;; qabs[i]--) {
 				int8_t s = 0;
 				for (size_t j = 0; i + j <= len; j++) {
 					s = pabs[i + j] + rhs.get(j) + (s >= 10);
@@ -187,7 +180,6 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 				if (nabs[len] != pabs[len]) {
 					break;
 				}
-				qabs[i]--;
 				for (size_t j = 0; i + j <= len; j++) {
 					pabs[i + j] = nabs[i + j];
 				}
