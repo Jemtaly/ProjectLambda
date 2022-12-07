@@ -162,8 +162,8 @@ public:
 					case 'C':
 						type = '^';
 						data = cmps.at(std::get<std::pair<char, StrInt>>(l.data).first)(std::get<StrInt>(r.data), std::get<std::pair<char, StrInt>>(l.data).second)
-							 ? Node<Expr>::make('^', Node<Expr>::make('$', 'b'))
-							 : Node<Expr>::make('^', Node<Expr>::make('$', 'a'));
+						     ? Node<Expr>::make('^', Node<Expr>::make('$', 'b'))
+						     : Node<Expr>::make('^', Node<Expr>::make('$', 'a'));
 						break;
 					}
 				}
