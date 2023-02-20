@@ -76,7 +76,7 @@ public:
 			if (d == 10) {
 				str[1] = '1';
 				str[0] = '-';
-				return str;
+				return str + 0;
 			} else {
 				str[1] = '-';
 				return str + 1;
@@ -205,7 +205,7 @@ StrInt operator/(StrInt const &lhs, StrInt const &rhs) {
 StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
 	return divmod<1>(lhs, rhs);
 }
-template <bool gt, bool lt, bool eq>
+template <bool gt, bool eq, bool lt>
 bool compare(StrInt const &lhs, StrInt const &rhs) {
 	if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
 		return gt;
@@ -226,20 +226,20 @@ bool compare(StrInt const &lhs, StrInt const &rhs) {
 bool operator>(StrInt const &lhs, StrInt const &rhs) {
 	return compare<1, 0, 0>(lhs, rhs);
 }
-bool operator<(StrInt const &lhs, StrInt const &rhs) {
-	return compare<0, 1, 0>(lhs, rhs);
-}
-bool operator>=(StrInt const &lhs, StrInt const &rhs) {
-	return compare<1, 0, 1>(lhs, rhs);
-}
 bool operator<=(StrInt const &lhs, StrInt const &rhs) {
 	return compare<0, 1, 1>(lhs, rhs);
 }
-bool operator==(StrInt const &lhs, StrInt const &rhs) {
+bool operator<(StrInt const &lhs, StrInt const &rhs) {
 	return compare<0, 0, 1>(lhs, rhs);
 }
-bool operator!=(StrInt const &lhs, StrInt const &rhs) {
+bool operator>=(StrInt const &lhs, StrInt const &rhs) {
 	return compare<1, 1, 0>(lhs, rhs);
+}
+bool operator==(StrInt const &lhs, StrInt const &rhs) {
+	return compare<0, 1, 0>(lhs, rhs);
+}
+bool operator!=(StrInt const &lhs, StrInt const &rhs) {
+	return compare<1, 0, 1>(lhs, rhs);
 }
 inline StrInt &operator+=(StrInt &lhs, StrInt const &rhs) {
 	return lhs = lhs + rhs;
