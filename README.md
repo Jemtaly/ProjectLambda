@@ -11,7 +11,7 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 ./lambda.exe
 ```
 
-*Add `-DUSE_GMP` option at compile time if you want to use the GNU MP bignum library for large integer operations.
+*Add `-DUSE_GMP` option at compile time if you want to use the GNU MP bignum library for large integer operations.*
 
 ## Commands
 
