@@ -5,7 +5,11 @@
 #include <string>
 #include <variant>
 #include "node.hpp"
+#ifdef USE_GMP
+#include "gmpint.hpp"
+#else
 #include "strint.hpp"
+#endif
 #if defined _WIN32
 #include <Windows.h>
 #elif defined __unix__
@@ -180,11 +184,9 @@ public:
 		case 'i':
 			return std::get<StrInt>(data).to_string();
 		case 'o':
-			return std::string{std::get<char>(data)};
 		case 'c':
 			return std::string{std::get<char>(data)};
 		case 'O':
-			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::get<std::pair<char, StrInt>>(data).second.to_string();
 		case 'C':
 			return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::get<std::pair<char, StrInt>>(data).second.to_string();
 		case '$':
