@@ -151,7 +151,7 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 		pabs[i] = lhs.get(i);
 	}
 	if (lhs.abs[lhs.len] == rhs.abs[rhs.len]) {
-		for (size_t i = lhs.len; i != -1; i--) {
+		for (size_t i = lhs.len; i <= lhs.len; i--) {
 			for (qabs[i] = 0;; qabs[i]++) {
 				int8_t d = 0;
 				for (size_t j = 0; i + j <= len; j++) {
@@ -170,7 +170,7 @@ StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
 			rabs[i] = pabs[i];
 		}
 	} else {
-		for (size_t i = lhs.len; i != -1; i--) {
+		for (size_t i = lhs.len; i <= lhs.len; i--) {
 			for (qabs[i] = 9;; qabs[i]--) {
 				int8_t s = 0;
 				for (size_t j = 0; i + j <= len; j++) {
@@ -213,7 +213,7 @@ bool compare(StrInt const &lhs, StrInt const &rhs) {
 	if (lhs.abs[lhs.len] > rhs.abs[rhs.len]) {
 		return lt;
 	}
-	for (size_t i = (lhs.len > rhs.len ? lhs.len : rhs.len) - 1; i != -1; i--) {
+	for (size_t m = lhs.len > rhs.len ? lhs.len : rhs.len, i = m - 1; i < m; i--) {
 		if (lhs.get(i) > rhs.get(i)) {
 			return gt;
 		}
