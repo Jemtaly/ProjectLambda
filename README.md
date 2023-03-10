@@ -18,7 +18,7 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 | instruction | usage |
 | --- | --- |
 | `cal FORMULA` | Calculate the formula. |
-| `cal FORMULA` | Format the formula. |
+| `fmt FORMULA` | Format the formula. |
 | `set VAR FORMULA` | Caculate the formula and save it in `!VAR`. |
 | `def VAR FORMULA` | Format the formula and save it in `&VAR`. |
 | `dir` | List all the defined functions/variables. |
