@@ -2,11 +2,12 @@
 #include <gmpxx.h>
 class StrInt {
 	mpz_class data;
-public:
 	StrInt(std::string const &str):
 		data(str) {}
-	StrInt(mpz_class const &data):
-		data(data) {}
+	template <typename T>
+	StrInt(__gmp_expr<mpz_t, T> const &expr):
+		data(expr) {}
+public:
 	static StrInt from_string(std::string const &str) {
 		return StrInt(str);
 	}

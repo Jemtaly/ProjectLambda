@@ -5,10 +5,10 @@ class StrInt {
 	size_t len;
 	int8_t *abs;
 	size_t *ctr;
-	auto const &get(size_t const &i) const {
+	auto get(size_t i) const {
 		return abs[i < len ? i : len];
 	}
-	StrInt(size_t const &rlen, int8_t *const &rabs):
+	StrInt(size_t rlen, int8_t *rabs):
 		len(rlen), abs(rabs), ctr(new size_t(1)) {
 		while (len && abs[len - 1] == abs[len]) {
 			len--;

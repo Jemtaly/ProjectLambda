@@ -5,11 +5,7 @@
 #include <string>
 #include <variant>
 #include "node.hpp"
-#ifdef USE_GMP
-#include "gmpint.hpp"
-#else
 #include "strint.hpp"
-#endif
 #if defined _WIN32
 #include <Windows.h>
 #elif defined __unix__
