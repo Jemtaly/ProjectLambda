@@ -1,5 +1,8 @@
 #pragma once
 #include <utility>
+// Node is a copyable smart pointer, data will be automatically copied
+// when copying the Node object, used for implementing trees or linked
+// lists.
 template <typename T>
 class Node {
     T *data;
