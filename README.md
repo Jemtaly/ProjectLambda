@@ -35,7 +35,6 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 | `!VAR` | Call the function/variable defined by `set` instruction. |
 | `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., `(5 - 2) / 3` should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
-| `+:n` `-:n` `*:n` `\:n` `%:n` `>:n` `<:n` `=:n` | Equivalent to `+ n` `- n` ... Notice that `n` must be literally a number, not an expression, variable or formal parameter. ***(Deprecated, now they only appear in the calculation results)*** |
 
 **Note:** The spaces between the above symbols must never be omitted!
 
@@ -78,7 +77,7 @@ cal &Z 2
 # output: 300
 ```
 
-**Explain:** `set Y * !X` calculate the formula and set `!Y` to `*:100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
+**Explain:** `set Y * !X` calculate the formula and set `!Y` to `* 100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
 
 ### Calculating the factorial of 99 using recursion
 
