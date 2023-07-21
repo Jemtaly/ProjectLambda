@@ -25,7 +25,7 @@ static std::map<char, cmp_t> const cmps = {
     {'<', operator<},
     {'=', operator==},
 };
-size_t operator>>(std::string &exp, std::string &sym) {
+bool operator>>(std::string &exp, std::string &sym) {
     size_t i = 0;
     while (exp[i] == ' ') {
         i++;
@@ -45,7 +45,7 @@ size_t operator>>(std::string &exp, std::string &sym) {
     }
     sym = exp.substr(j, i - j);
     exp = exp.substr(i);
-    return i - j;
+    return i > j;
 }
 class Expr;
 static std::map<std::string, Expr> defs;
@@ -78,7 +78,7 @@ class Expr {
 public:
     static Expr parse(std::string &exp) {
         std::string sym;
-        if (0 == exp >> sym) {
+        if (!(exp >> sym)) {
             return Expr('s', "NULL");
         }
         auto res = [&]() {
@@ -184,7 +184,7 @@ public:
             return std::string{std::get<char>(data)};
         case 'O':
         case 'C':
-            return std::string{std::get<std::pair<char, StrInt>>(data).first, ':'} + std::get<std::pair<char, StrInt>>(data).second.to_string();
+            return (par ? "(" : "") + std::string{std::get<std::pair<char, StrInt>>(data).first, ' '} + std::get<std::pair<char, StrInt>>(data).second.to_string() + (par ? ")" : "");
         case '$':
             return std::string{'$', std::get<char>(data)};
         case '&':
@@ -192,11 +192,11 @@ public:
         case '!':
             return "!" + std::get<std::string>(data);
         case '^':
-            return "[" + std::get<Node<Expr>>(data)->translate() + "]";
+            return "[" + std::get<Node<Expr>>(data)->translate<0>() + "]";
         case '|':
             return (par ? "(" : "") + std::get<Node<std::pair<Expr, Expr>>>(data)->first.translate<0>() + " " + std::get<Node<std::pair<Expr, Expr>>>(data)->second.translate<1>() + (par ? ")" : "");
         case '#':
-            return std::get<std::shared_ptr<Expr>>(data)->translate();
+            return std::get<std::shared_ptr<Expr>>(data)->translate<0>();
         }
     }
 };
