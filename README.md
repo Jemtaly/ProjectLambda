@@ -28,69 +28,82 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 
 | symbol | meaning |
 | --- | --- |
-| `[...]` | An lambda expression with single argument. |
-| `(...)` | Since applications are assumed to be left associative, `f g a` will be interpret to `(f g) a`, rather than `f (g a)`. |
-| `$a` `$b` `...` | Formal parameters, use `$a` for the argument to the innermost lambda expression, use `$b` for the second innermost one, and so on ... Example: `[[$a $b] $a] x` => `[$a x] x` => `x x`. |
+| `(...)` | (Since applications are assumed to be left associative, `f g a` will be interpret to `(f g) a`, rather than `f (g a)`.) |
+| `ARG.EXPR` | Lambda expression, `ARG` is the formal parameter, `EXPR` is the body. Example: `x.y.($y $x)` => $\lambda x.\lambda y.(y\ x)$. (**Note:** There are no spaces on both sides of the dot.) |
+| `$ARG` | Formal parameter, used in lambda expressions. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
-| `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., `(5 - 2) / 3` should be represented as `/ 3 (- 2 5)`. |
+| `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., $(5-2)/3$ should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
 
-**Note:** The spaces between the above symbols must never be omitted!
+**Note:** The spaces between the above symbols are required.
 
 ## Examples
 
 ### First example
 
 ```
-cal [[$a $b]] world! Hello,
+cal x.y.($y $x) world! Hello,
 # output: Hello, world!
 ```
 
-**Computational procedure:** `[[$a $b]] world! Hello,` => `[$a world!] Hello,` => `Hello, world!`
+**Computational procedure:** `x.y.($y $x) world! Hello,` => `y.($y world!) Hello,` => `Hello, world!`
 
 ### Lazy evaluation
 
 ```
-cal [[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)
+cal x.y.$y (f.($f $f) f.($f $f)) (a.o.b.($o $a $b) 12 / 4)
 # output: 3
 ```
 
-**Explain:** Because of the undecidability of combinatorial calculus, `[$a $a] [$a $a]` will cause a infinite loop, but thanks to the mechanism of lazy evaluation, it is not really calculated, so the formula will be calculated successfully.
+**Computational procedure:** `x.y.$y (f.($f $f) f.($f $f)) (a.o.b.($o $a $b) 12 / 4)` => `y.$y (a.o.b.($o $a $b) 12 / 4)` => `a.o.b.($o $a $b) 12 / 4` => `\ 4 12` => `3`
 
-**Computational procedure:** `[[$a]] ([$a $a] [$a $a]) ([[[$b $a $c]]] 12 / 4)` => `[$a] ([[[$b $a $c]]] 12 / 4)` => `[[[$b $a $c]]] 12 / 4` => `\ 4 12` => `3`
+**Explain:** Because of the undecidability of combinatorial calculus, `(f.($f $f) f.($f $f))` will cause a infinite loop, however, since we use lazy evaluation, it will not be evaluated until it is called, so the program will not be stuck.
+
+### Scope of formal parameters
+
+```
+cal x.y.(x.$x $y) a b
+# output: b
+```
+
+**Computational procedure:** `x.y.(x.$x $y) a b` => `y.(x.$x $y) b` => `x.$x b` => `b`
+
+**Explain:** Lambda expressions `x.y.(x.$x $y)` and `x.$x` have the same formal parameter `x`, however, `$x` should be interpreted as the formal parameter of the innermost lambda expression, so the result is `b`.
 
 ### Difference between `def` and `set`
 
 ```
-set X 100
-set Y * !X
-def Z * !X
-cal !Y 2
+set x 100
+set y * !x
+def y * !x
+cal !y 2
 # output: 200
-cal &Z 2
+cal &y 2
 # output: 200
-set X + 50 !X
-cal !Y 2
+set x + 50 !x
+cal !y 2
 # output: 200
-cal &Z 2
+cal &y 2
 # output: 300
 ```
 
-**Explain:** `set Y * !X` calculate the formula and set `!Y` to `* 100`, while `def Z * !X` set `&Z` to literally `* !X`, so whenever you call `&Z`, it will be recalculated, therefore, after `set X + 50 !X` change the value of !X to 150, the result of `&Z 2` will be changed to `300`.
+**Explain:** `set y * !x` calculate the formula and set `!y` to `* 100`, while `def y * !x` set `&y` to literally `* !x`, so whenever you call `&z`, it will be recalculated, therefore, after `set x + 50 !x` change the value of `!x` to 150, the result of `&y 2` will be changed to `300`.
 
 ### Calculating the factorial of 99 using recursion
 
+- Using `def`:
+
 ```
-def FACTORIAL [> 0 $a (* $a (&FACTORIAL (- 1 $a))) 1]
-cal &FACTORIAL 99
+def fact n.(> 0 $n (* $n (&frac (- 1 $n))) 1)
+cal &fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
 
-### Convert 39244 to octonary
+- Using `set`:
 
 ```
-def BASE [[$a $a] [[< $c $a $a ($b $b (/ $c $a) (% $c $a))]]]
-cal &BASE 8 39244
-# output: 1 1 4 5 1 4
+set frac f.($f $f) f.n.(> 0 $n (* $n ($f $f (- 1 $n))) 1)
+cal !frac 99
+# output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```

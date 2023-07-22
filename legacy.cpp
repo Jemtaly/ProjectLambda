@@ -5,11 +5,7 @@
 #include <unordered_map>
 #include <variant>
 #include "node.hpp"
-#ifdef USE_GMP
-#include "gmpint.hpp"
-#else
 #include "strint.hpp"
-#endif
 #if defined _WIN32
 #include <Windows.h>
 #elif defined __unix__
@@ -17,10 +13,6 @@
 #endif
 #define SET 1
 #define DEF 0
-#define MAX_DEPTH 65536
-#define LITRL_STR(x) #x
-#define MACRO_STR(x) LITRL_STR(x)
-#pragma comment(linker, "/STACK:" MACRO_STR(MAX_DEPTH) "000")
 typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
 typedef bool (*cmp_t)(StrInt const &, StrInt const &);
 inline std::unordered_map<char, opr_t> const oprs = {
@@ -35,64 +27,60 @@ inline std::unordered_map<char, cmp_t> const cmps = {
     {'<', operator<},
     {'=', operator==},
 };
-inline std::size_t operator>>(std::string &exp, std::string &sym) {
-    std::size_t i = 0;
+inline bool operator>>(std::string &exp, std::string &sym) {
+    size_t i = 0;
     while (exp[i] == ' ') {
         i++;
     }
-    std::size_t j = i;
-    std::size_t n = j - 1;
-    std::size_t c = 0;
-    for (; i < exp.size() && (exp[i] != ' ' || c != 0); i++) {
+    size_t j = i;
+    for (size_t ctr = 0; ctr || i < exp.size() && exp[i] != ' '; i++) {
         switch (exp[i]) {
-        case '(': c++; break;
-        case ')': c--; break;
-        case '.':
-            if (c == 0 && n == j - 1) {
-                n = i + 1;
-            }
+        case '(':
+        case '[':
+            ctr++;
+            break;
+        case ')':
+        case ']':
+            ctr--;
+            break;
         }
-    }
-    if (c != 0) {
-        throw std::runtime_error("mismatched parentheses");
     }
     sym = exp.substr(j, i - j);
     exp = exp.substr(i);
-    return i > j ? n - j : 0;
+    return i > j;
 }
 class Expr {
     template <bool spc>
     static inline std::unordered_map<std::string, Expr const> dict;
     char type;
-    std::variant<Node<std::pair<std::string, Expr>>, Node<std::pair<Expr, Expr>>, std::shared_ptr<std::pair<Expr, bool>>, std::pair<char, StrInt>, char, StrInt, std::string> data;
+    std::variant<Node<Expr>, Node<std::pair<Expr, Expr>>, std::shared_ptr<std::pair<Expr, bool>>, std::pair<char, StrInt>, char, StrInt, std::string> data;
+    friend Node<Expr>;
     template <typename T>
     Expr(char type, T &&data):
         type(type), data(static_cast<T &&>(data)) {}
-    void apply(std::shared_ptr<std::pair<Expr, bool>> const &ptr, std::string const &name) {
+    void apply(std::shared_ptr<std::pair<Expr, bool>> const &ptr, char c = 'a') {
         switch (type) {
         case '$':
-            if (std::get<std::string>(data) == name) {
+            if (std::get<char>(data) == c) {
                 type = '#';
                 data = ptr;
             }
             break;
-        case '.':
-            if (std::get<Node<std::pair<std::string, Expr>>>(data)->first != name) {
-                std::get<Node<std::pair<std::string, Expr>>>(data)->second.apply(ptr, name);
-            }
+        case '^':
+            std::get<Node<Expr>>(data)->apply(ptr, c + 1);
             break;
         case '|':
-            std::get<Node<std::pair<Expr, Expr>>>(data)->first.apply(ptr, name);
-            std::get<Node<std::pair<Expr, Expr>>>(data)->second.apply(ptr, name);
+            std::get<Node<std::pair<Expr, Expr>>>(data)->first.apply(ptr, c);
+            std::get<Node<std::pair<Expr, Expr>>>(data)->second.apply(ptr, c);
             break;
         }
     }
     template <bool spc>
-    void get(std::string const &name, int depth) {
+    void get(std::string const &name) {
         if (auto const &it = dict<spc>.find(name); it != dict<spc>.end()) {
             *this = it->second;
             if constexpr (spc == DEF) {
-                calculate(depth);
+                calculate();
             }
         } else {
             type = 's';
@@ -120,22 +108,20 @@ public:
     }
     static Expr parse(std::string &&exp) {
         std::string sym;
-        std::size_t dot;
-        if (dot = exp >> sym, dot == 0) {
+        if (!(exp >> sym)) {
             return Expr('s', "NULL");
         }
         auto res = [&]() {
-            if (dot != -1) {
-                auto name = sym.substr(0, dot - 1);
-                return Expr('.', Node<std::pair<std::string, Expr>>::make(std::move(name), parse(sym.substr(dot))));
-            } else if (sym.front() == '$') {
-                return Expr('$', sym.substr(1));
+            if (sym.front() == '$' && sym.size() == 2) {
+                return Expr('$', sym.back());
             } else if (sym.front() == '&') {
                 return Expr('&', sym.substr(1));
             } else if (sym.front() == '!') {
                 return Expr('!', sym.substr(1));
             } else if (sym.front() == '(' && sym.back() == ')') {
                 return parse(sym.substr(1, sym.size() - 2));
+            } else if (sym.front() == '[' && sym.back() == ']') {
+                return Expr('^', Node<Expr>::make(parse(sym.substr(1, sym.size() - 2))));
             } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
                 return Expr('o', o->first);
             } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
@@ -153,21 +139,18 @@ public:
         }
         return res;
     }
-    void calculate(int depth = MAX_DEPTH) {
-        if (depth == 0) {
-            throw std::runtime_error("recursion too deep");
-        }
+    void calculate() {
         switch (type) {
         case '!': {
-            get<SET>(std::get<std::string>(data), depth - 1);
+            get<SET>(std::get<std::string>(data));
         } break;
         case '&': {
-            get<DEF>(std::get<std::string>(data), depth - 1);
+            get<DEF>(std::get<std::string>(data));
         } break;
         case '#': {
             auto tmp = std::get<std::shared_ptr<std::pair<Expr, bool>>>(data);
             if (not tmp->second) {
-                tmp->first.calculate(depth - 1);
+                tmp->first.calculate();
                 tmp->second = true;
             }
             *this = tmp->first;
@@ -175,14 +158,14 @@ public:
         case '|': {
             auto &l = std::get<Node<std::pair<Expr, Expr>>>(data)->first;
             auto &r = std::get<Node<std::pair<Expr, Expr>>>(data)->second;
-            l.calculate(depth - 1);
-            if (l.type == '.') {
-                auto nod = std::move(std::get<Node<std::pair<std::string, Expr>>>(l.data));
-                nod->second.apply(std::make_shared<std::pair<Expr, bool>>(std::move(r), false), nod->first);
-                *this = std::move(nod->second);
-                calculate(depth - 1);
+            l.calculate();
+            if (l.type == '^') {
+                auto nod = std::move(std::get<Node<Expr>>(l.data));
+                nod->apply(std::make_shared<std::pair<Expr, bool>>(std::move(r), false));
+                *this = std::move(*nod);
+                calculate();
             } else {
-                r.calculate(depth - 1);
+                r.calculate();
                 if (r.type == 'i') {
                     switch (l.type) {
                     case 'o':
@@ -195,10 +178,10 @@ public:
                         data = oprs.at(std::get<std::pair<char, StrInt>>(l.data).first)(std::get<StrInt>(r.data), std::get<std::pair<char, StrInt>>(l.data).second);
                         break;
                     case 'C':
-                        type = '.';
+                        type = '^';
                         data = cmps.at(std::get<std::pair<char, StrInt>>(l.data).first)(std::get<StrInt>(r.data), std::get<std::pair<char, StrInt>>(l.data).second)
-                             ? Node<std::pair<std::string, Expr>>::make("T", Expr('.', Node<std::pair<std::string, Expr>>::make("F", Expr('$', "T"))))
-                             : Node<std::pair<std::string, Expr>>::make("T", Expr('.', Node<std::pair<std::string, Expr>>::make("F", Expr('$', "F"))));
+                             ? Node<Expr>::make('^', Node<Expr>::make('$', 'b'))
+                             : Node<Expr>::make('^', Node<Expr>::make('$', 'a'));
                         break;
                     }
                 }
@@ -221,10 +204,10 @@ public:
             return (par ? "(" : "") + std::string{std::get<std::pair<char, StrInt>>(data).first, ' '} + std::get<std::pair<char, StrInt>>(data).second.to_string() + (par ? ")" : "");
         case '|':
             return (par ? "(" : "") + std::get<Node<std::pair<Expr, Expr>>>(data)->first.translate<0>() + " " + std::get<Node<std::pair<Expr, Expr>>>(data)->second.translate<1>() + (par ? ")" : "");
-        case '.':
-            return std::get<Node<std::pair<std::string, Expr>>>(data)->first + "." + std::get<Node<std::pair<std::string, Expr>>>(data)->second.translate<1>();
+        case '^':
+            return "[" + std::get<Node<Expr>>(data)->translate<0>() + "]";
         case '$':
-            return "$" + std::get<std::string>(data);
+            return std::string{'$', std::get<char>(data)};
         case '&':
             return "&" + std::get<std::string>(data);
         case '!':
@@ -257,39 +240,35 @@ int main(int argc, char *argv[]) {
         if ((end = std::cin.eof()) && check_stdin && check_stderr) {
             std::cerr << std::endl;
         }
-        try {
-            exp >> buf;
-            if (buf == "dir") {
-                for (auto const &l : Expr::dir<SET>()) {
-                    std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
-                }
-                for (auto const &l : Expr::dir<DEF>()) {
-                    std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
-                }
-            } else if (buf == "clr") {
-                Expr::clr<SET>();
-                Expr::clr<DEF>();
-            } else if (buf == "set") {
-                if (exp >> buf) {
-                    Expr::put<SET>(buf, Expr::parse(std::move(exp)));
-                }
-            } else if (buf == "def") {
-                if (exp >> buf) {
-                    Expr::put<DEF>(buf, Expr::parse(std::move(exp)));
-                }
-            } else if (buf == "cal") {
-                auto &res = Expr::put<SET>("", Expr::parse(std::move(exp)));
+        exp >> buf;
+        if (buf == "dir") {
+            for (auto const &l : Expr::dir<SET>()) {
                 std::cerr << ps_out;
-                std::cout << res.translate() << std::endl;
-            } else if (buf == "fmt") {
-                auto &res = Expr::put<DEF>("", Expr::parse(std::move(exp)));
-                std::cerr << ps_out;
-                std::cout << res.translate() << std::endl;
+                std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
             }
-        } catch (std::exception const &e) {
-            std::cerr << "Runtime Error: " << e.what() << std::endl;
+            for (auto const &l : Expr::dir<DEF>()) {
+                std::cerr << ps_out;
+                std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
+            }
+        } else if (buf == "clr") {
+            Expr::clr<SET>();
+            Expr::clr<DEF>();
+        } else if (buf == "set") {
+            if (exp >> buf) {
+                Expr::put<SET>(buf, Expr::parse(std::move(exp)));
+            }
+        } else if (buf == "def") {
+            if (exp >> buf) {
+                Expr::put<DEF>(buf, Expr::parse(std::move(exp)));
+            }
+        } else if (buf == "cal") {
+            auto &res = Expr::put<SET>("", Expr::parse(std::move(exp)));
+            std::cerr << ps_out;
+            std::cout << res.translate() << std::endl;
+        } else if (buf == "fmt") {
+            auto &res = Expr::put<DEF>("", Expr::parse(std::move(exp)));
+            std::cerr << ps_out;
+            std::cout << res.translate() << std::endl;
         }
     }
     return 0;
