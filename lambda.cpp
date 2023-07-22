@@ -15,19 +15,19 @@
 #define DEF 0
 typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
 typedef bool (*cmp_t)(StrInt const &, StrInt const &);
-static std::unordered_map<char, opr_t> const oprs = {
+inline std::unordered_map<char, opr_t> const oprs = {
     {'+', operator+},
     {'-', operator-},
     {'*', operator*},
     {'/', operator/},
     {'%', operator%},
 };
-static std::unordered_map<char, cmp_t> const cmps = {
+inline std::unordered_map<char, cmp_t> const cmps = {
     {'>', operator>},
     {'<', operator<},
     {'=', operator==},
 };
-bool operator>>(std::string &exp, std::string &sym) {
+inline bool operator>>(std::string &exp, std::string &sym) {
     size_t i = 0;
     while (exp[i] == ' ') {
         i++;
@@ -51,7 +51,7 @@ bool operator>>(std::string &exp, std::string &sym) {
 }
 class Expr {
     template <bool spc>
-    inline static std::unordered_map<std::string, Expr const> dict;
+    static inline std::unordered_map<std::string, Expr const> dict;
     char type;
     std::variant<Node<Expr>, Node<std::pair<Expr, Expr>>, std::shared_ptr<std::pair<Expr, bool>>, std::pair<char, StrInt>, char, StrInt, std::string> data;
     friend Node<Expr>;
