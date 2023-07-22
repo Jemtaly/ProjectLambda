@@ -1,8 +1,8 @@
 #include <iomanip>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include "node.hpp"
 #include "strint.hpp"
@@ -11,16 +11,18 @@
 #elif defined __unix__
 #include <unistd.h>
 #endif
+#define SET 1
+#define DEF 0
 typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
 typedef bool (*cmp_t)(StrInt const &, StrInt const &);
-static std::map<char, opr_t> const oprs = {
+static std::unordered_map<char, opr_t> const oprs = {
     {'+', operator+},
     {'-', operator-},
     {'*', operator*},
     {'/', operator/},
     {'%', operator%},
 };
-static std::map<char, cmp_t> const cmps = {
+static std::unordered_map<char, cmp_t> const cmps = {
     {'>', operator>},
     {'<', operator<},
     {'=', operator==},
@@ -47,18 +49,16 @@ bool operator>>(std::string &exp, std::string &sym) {
     exp = exp.substr(i);
     return i > j;
 }
-class Expr;
-static std::map<std::string, Expr> defs;
-static std::map<std::string, Expr> sets;
 class Expr {
+    template <bool spc>
+    inline static std::unordered_map<std::string, Expr const> dict;
     char type;
-    bool done;
-    std::variant<Node<std::pair<Expr, Expr>>, Node<Expr>, std::shared_ptr<Expr>, char, std::pair<char, StrInt>, StrInt, std::string> data;
+    std::variant<Node<Expr>, Node<std::pair<Expr, Expr>>, std::shared_ptr<std::pair<Expr, bool>>, std::pair<char, StrInt>, char, StrInt, std::string> data;
     friend Node<Expr>;
     template <typename T>
     Expr(char type, T &&data):
-        type(type), done(false), data(static_cast<T &&>(data)) {}
-    void apply(std::shared_ptr<Expr> const &ptr, char c = 'a') {
+        type(type), data(static_cast<T &&>(data)) {}
+    void apply(std::shared_ptr<std::pair<Expr, bool>> const &ptr, char c = 'a') {
         switch (type) {
         case '$':
             if (std::get<char>(data) == c) {
@@ -75,8 +75,38 @@ class Expr {
             break;
         }
     }
+    template <bool spc>
+    void get(std::string const &name) {
+        if (auto const &it = dict<spc>.find(name); it != dict<spc>.end()) {
+            *this = it->second;
+            if constexpr (spc == DEF) {
+                calculate();
+            }
+        } else {
+            type = 's';
+            data = "NULL";
+        }
+    }
 public:
-    static Expr parse(std::string &exp) {
+    template <bool spc, typename T>
+    static auto &put(std::string const &name, T &&expr) {
+        if (auto const &it = dict<spc>.find(name); it != dict<spc>.end()) {
+            dict<spc>.erase(it);
+        }
+        if constexpr (spc == SET) {
+            expr.calculate();
+        }
+        return dict<spc>.emplace(name, std::forward<T>(expr)).first->second;
+    }
+    template <bool spc>
+    static auto const &dir() {
+        return dict<spc>;
+    }
+    template <bool spc>
+    static void clr() {
+        dict<spc>.clear();
+    }
+    static Expr parse(std::string &&exp) {
         std::string sym;
         if (!(exp >> sym)) {
             return Expr('s', "NULL");
@@ -89,9 +119,9 @@ public:
             } else if (sym.front() == '!') {
                 return Expr('!', sym.substr(1));
             } else if (sym.front() == '(' && sym.back() == ')') {
-                return parse(sym = sym.substr(1, sym.size() - 2));
+                return parse(sym.substr(1, sym.size() - 2));
             } else if (sym.front() == '[' && sym.back() == ']') {
-                return Expr('^', Node<Expr>::make(parse(sym = sym.substr(1, sym.size() - 2))));
+                return Expr('^', Node<Expr>::make(parse(sym.substr(1, sym.size() - 2))));
             } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
                 return Expr('o', o->first);
             } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
@@ -105,37 +135,25 @@ public:
             }
         }();
         while (exp >> sym) {
-            res = Expr('|', Node<std::pair<Expr, Expr>>::make(std::move(res), parse(sym)));
+            res = Expr('|', Node<std::pair<Expr, Expr>>::make(std::move(res), parse(std::move(sym))));
         }
         return res;
     }
     void calculate() {
         switch (type) {
-        case '#': {
-            auto tmp = std::get<std::shared_ptr<Expr>>(data);
-            if (not tmp->done) {
-                tmp->calculate();
-            }
-            *this = *tmp;
-        } break;
         case '!': {
-            auto const &tmp = sets.find(std::get<std::string>(data));
-            if (tmp == sets.end()) {
-                type = 's';
-                data = "NULL";
-            } else {
-                *this = tmp->second;
-            }
+            get<SET>(std::get<std::string>(data));
         } break;
         case '&': {
-            auto const &tmp = defs.find(std::get<std::string>(data));
-            if (tmp == defs.end()) {
-                type = 's';
-                data = "NULL";
-            } else {
-                *this = tmp->second;
-                calculate();
+            get<DEF>(std::get<std::string>(data));
+        } break;
+        case '#': {
+            auto tmp = std::get<std::shared_ptr<std::pair<Expr, bool>>>(data);
+            if (not tmp->second) {
+                tmp->first.calculate();
+                tmp->second = true;
             }
+            *this = tmp->first;
         } break;
         case '|': {
             auto &l = std::get<Node<std::pair<Expr, Expr>>>(data)->first;
@@ -143,7 +161,7 @@ public:
             l.calculate();
             if (l.type == '^') {
                 auto nod = std::move(std::get<Node<Expr>>(l.data));
-                nod->apply(std::make_shared<Expr>(std::move(r)));
+                nod->apply(std::make_shared<std::pair<Expr, bool>>(std::move(r), false));
                 *this = std::move(*nod);
                 calculate();
             } else {
@@ -170,7 +188,6 @@ public:
             }
         } break;
         }
-        done = true;
     }
     template <bool par = false>
     std::string translate() const {
@@ -185,23 +202,25 @@ public:
         case 'O':
         case 'C':
             return (par ? "(" : "") + std::string{std::get<std::pair<char, StrInt>>(data).first, ' '} + std::get<std::pair<char, StrInt>>(data).second.to_string() + (par ? ")" : "");
+        case '|':
+            return (par ? "(" : "") + std::get<Node<std::pair<Expr, Expr>>>(data)->first.translate<0>() + " " + std::get<Node<std::pair<Expr, Expr>>>(data)->second.translate<1>() + (par ? ")" : "");
+        case '^':
+            return "[" + std::get<Node<Expr>>(data)->translate<0>() + "]";
         case '$':
             return std::string{'$', std::get<char>(data)};
         case '&':
             return "&" + std::get<std::string>(data);
         case '!':
             return "!" + std::get<std::string>(data);
-        case '^':
-            return "[" + std::get<Node<Expr>>(data)->translate<0>() + "]";
-        case '|':
-            return (par ? "(" : "") + std::get<Node<std::pair<Expr, Expr>>>(data)->first.translate<0>() + " " + std::get<Node<std::pair<Expr, Expr>>>(data)->second.translate<1>() + (par ? ")" : "");
         case '#':
-            return std::get<std::shared_ptr<Expr>>(data)->translate<0>();
+            return std::get<std::shared_ptr<std::pair<Expr, bool>>>(data)->first.translate<0>();
         }
     }
 };
 int main(int argc, char *argv[]) {
-    bool check_stdin = true, check_stdout = true, check_stderr = true;
+    bool check_stdin = true;
+    bool check_stdout = true;
+    bool check_stderr = true;
 #if defined _WIN32
     DWORD dwModeTemp;
     check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
@@ -223,39 +242,33 @@ int main(int argc, char *argv[]) {
         }
         exp >> buf;
         if (buf == "dir") {
-            for (auto const &l : sets) {
+            for (auto const &l : Expr::dir<SET>()) {
                 std::cerr << ps_out;
                 std::cout << std::left << std::setw(10) << '!' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
             }
-            for (auto const &l : defs) {
+            for (auto const &l : Expr::dir<DEF>()) {
                 std::cerr << ps_out;
                 std::cout << std::left << std::setw(10) << '&' + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate() << std::endl;
             }
         } else if (buf == "clr") {
-            sets.clear();
-            defs.clear();
+            Expr::clr<SET>();
+            Expr::clr<DEF>();
         } else if (buf == "set") {
             if (exp >> buf) {
-                auto tmp = Expr::parse(exp);
-                tmp.calculate();
-                sets.insert_or_assign(buf, std::move(tmp));
+                Expr::put<SET>(buf, Expr::parse(std::move(exp)));
             }
         } else if (buf == "def") {
             if (exp >> buf) {
-                auto tmp = Expr::parse(exp);
-                defs.insert_or_assign(buf, std::move(tmp));
+                Expr::put<DEF>(buf, Expr::parse(std::move(exp)));
             }
         } else if (buf == "cal") {
-            auto tmp = Expr::parse(exp);
-            tmp.calculate();
+            auto &res = Expr::put<SET>("", Expr::parse(std::move(exp)));
             std::cerr << ps_out;
-            std::cout << tmp.translate() << std::endl;
-            sets.insert_or_assign("", std::move(tmp));
+            std::cout << res.translate() << std::endl;
         } else if (buf == "fmt") {
-            auto tmp = Expr::parse(exp);
+            auto &res = Expr::put<DEF>("", Expr::parse(std::move(exp)));
             std::cerr << ps_out;
-            std::cout << tmp.translate() << std::endl;
-            defs.insert_or_assign("", std::move(tmp));
+            std::cout << res.translate() << std::endl;
         }
     }
     return 0;
