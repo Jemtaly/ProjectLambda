@@ -23,7 +23,7 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 | `def VAR FORMULA` | Format the formula and save it in `&VAR`. |
 | `dir` | List all the defined functions/variables. |
 | `clr` | Clear the defined functions/variables. |
-| `end` or <kbd>eof</kbd> | Exit programme. |
+| `end` or <kbd>eof</kbd> | Exit the program. |
 
 ## Syntax
 
