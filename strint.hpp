@@ -1,14 +1,15 @@
 #pragma once
 #include <stdint.h>
 #include <string>
+#include <stdexcept>
 class StrInt {
     size_t len;
-    int8_t *abs;
+    int8_t const *abs;
     size_t *ctr;
     auto get(size_t i) const {
         return abs[i < len ? i : len];
     }
-    StrInt(size_t rlen, int8_t *rabs):
+    StrInt(size_t rlen, int8_t const *rabs):
         len(rlen), abs(rabs), ctr(new size_t(1)) {
         while (len && abs[len - 1] == abs[len]) {
             len--;
@@ -44,7 +45,7 @@ public:
             for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
                 if (str[i] < '0' || str[i] > '9') {
                     delete[] abs;
-                    throw std::exception();
+                    throw std::invalid_argument("invalid argument");
                 } else {
                     d = '9' - str[i] + (d == 10);
                     abs[j] = d == 10 ? 0 : d;
@@ -55,7 +56,7 @@ public:
             for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
                 if (str[i] < '0' || str[i] > '9') {
                     delete[] abs;
-                    throw std::exception();
+                    throw std::invalid_argument("invalid argument");
                 } else {
                     abs[j] = str[i] - '0';
                 }
@@ -65,15 +66,15 @@ public:
         return StrInt(len, abs);
     }
     std::string to_string() const {
+        char str[len + 3]; // GCC and Clang variable length array extension
+        str[len + 2] = 0;
         if (abs[len]) {
-            char str[len + 3];
-            str[len + 2] = 0;
-            int8_t d = 10;
+            bool flag = true;
             for (size_t i = 0, j = len + 1; i < len; i++, j--) {
-                d = 9 - abs[i] + (d == 10);
-                str[j] = d == 10 ? '0' : '0' + d;
+                int8_t d = '9' - abs[i] + flag;
+                str[j] = (flag = d > '9') ? '0' : d;
             }
-            if (d == 10) {
+            if (flag) {
                 str[1] = '1';
                 str[0] = '-';
                 return str + 0;
@@ -82,14 +83,13 @@ public:
                 return str + 1;
             }
         } else if (len) {
-            char str[len + 1];
-            str[len] = 0;
-            for (size_t i = 0, j = len - 1; i < len; i++, j--) {
-                str[j] = abs[i] + '0';
+            for (size_t i = 0, j = len + 1; i < len; i++, j--) {
+                str[j] = '0' + abs[i];
             }
-            return str;
+            return str + 2;
         } else {
-            return "0";
+            str[1] = '0';
+            return str + 1;
         }
     }
     friend inline StrInt operator+(StrInt const &, StrInt const &);
