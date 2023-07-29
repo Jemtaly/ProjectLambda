@@ -5,7 +5,11 @@
 #include <unordered_map>
 #include <variant>
 #include "node.hpp"
+#ifdef USE_GMP
+#include "gmpint.hpp"
+#else
 #include "strint.hpp"
+#endif
 #if defined _WIN32
 #include <Windows.h>
 #pragma comment(linker, "/STACK:16384000")
