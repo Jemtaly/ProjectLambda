@@ -5,23 +5,20 @@
 #include <unordered_map>
 #include <variant>
 #include "node.hpp"
-#ifdef USE_GMP
-#include "gmpint.hpp"
-#else
 #include "strint.hpp"
-#endif
 #if defined _WIN32
 #include <Windows.h>
+#pragma comment(linker, "/STACK:16384000")
 #elif defined __unix__
 #include <unistd.h>
 #endif
 #define SET 1
 #define DEF 0
-#define MAX_DEPTH 0x1000
-#define MAX_STACK 0x1000000
-#define LITRL_STR(x) #x
-#define MACRO_STR(x) LITRL_STR(x)
-#pragma comment(linker, "/STACK:" MACRO_STR(MAX_STACK))
+#define STACK_ERR 8192000
+static int *stack_top;
+static bool stack_err(int dummy = 0) {
+    return (char *)stack_top - (char *)&dummy >= STACK_ERR;
+}
 typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
 typedef bool (*cmp_t)(StrInt const &, StrInt const &);
 inline std::unordered_map<char, opr_t> const oprs = {
@@ -80,22 +77,6 @@ public:
         return map<SPC>.emplace(key, std::move(val)).first->second;
     }
     template <bool SPC>
-    void get(int depth) {
-        if (auto const &it = map<SPC>.find(std::get<std::string>(var)); it != map<SPC>.end()) {
-            *this = it->second;
-            if constexpr (SPC == DEF) {
-                calculate(depth);
-            }
-        } else {
-            if constexpr (SPC == SET) {
-                throw std::runtime_error("undefined symbol: !" + std::get<std::string>(var));
-            }
-            if constexpr (SPC == DEF) {
-                throw std::runtime_error("undefined symbol: &" + std::get<std::string>(var));
-            }
-        }
-    }
-    template <bool SPC>
     static auto const &dir() {
         return map<SPC>;
     }
@@ -144,79 +125,99 @@ public:
     }
     void apply(std::shared_ptr<std::pair<Tree, bool>> const &ptr, std::string const &par) {
         switch (tid) {
-        case '$':
-            if (std::get<std::string>(var) == par) {
-                tid = '#';
-                var = ptr;
-            }
+        case '|':
+            std::get<Node<std::pair<Tree, Tree>>>(var)->first.apply(ptr, par);
+            std::get<Node<std::pair<Tree, Tree>>>(var)->second.apply(ptr, par);
             break;
         case ':':
             if (std::get<Node<std::pair<std::string, Tree>>>(var)->first != par) {
                 std::get<Node<std::pair<std::string, Tree>>>(var)->second.apply(ptr, par);
             }
             break;
-        case '|':
-            std::get<Node<std::pair<Tree, Tree>>>(var)->first.apply(ptr, par);
-            std::get<Node<std::pair<Tree, Tree>>>(var)->second.apply(ptr, par);
+        case '$':
+            if (std::get<std::string>(var) == par) {
+                tid = '#';
+                var = ptr;
+            }
             break;
         }
     }
-    void calculate(int depth = MAX_DEPTH) {
-        if (depth == 0) {
+    Tree deep_copy() const {
+        switch (tid) {
+        case '|':
+            return Tree('|', Node<std::pair<Tree, Tree>>::make(
+                std::get<Node<std::pair<Tree, Tree>>>(var)->first.deep_copy(),
+                std::get<Node<std::pair<Tree, Tree>>>(var)->second.deep_copy()));
+        case ':':
+            return Tree(':', Node<std::pair<std::string, Tree>>::make(
+                std::get<Node<std::pair<std::string, Tree>>>(var)->first,
+                std::get<Node<std::pair<std::string, Tree>>>(var)->second.deep_copy()));
+        case '#':
+            return Tree('#', std::make_shared<std::pair<Tree, bool>>(
+                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->first.deep_copy(),
+                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->second));
+        default:
+            return *this;
+        }
+    }
+    void calculate() {
+        if (stack_err()) {
             throw std::runtime_error("recursion too deep");
         }
         switch (tid) {
-        case '$':
-            throw std::runtime_error("unbound parameter: $" + std::get<std::string>(var));
-        case '!':
-            get<SET>(depth - 1);
-            break;
-        case '&':
-            get<DEF>(depth - 1);
-            break;
+        case '|': {
+            auto &fst = std::get<Node<std::pair<Tree, Tree>>>(var)->first;
+            auto &snd = std::get<Node<std::pair<Tree, Tree>>>(var)->second;
+            if (fst.calculate(), fst.tid == ':') {
+                auto nod = std::move(std::get<Node<std::pair<std::string, Tree>>>(fst.var));
+                nod->second.apply(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), nod->first);
+                *this = std::move(nod->second);
+                calculate();
+            } else if (snd.calculate(), snd.tid == 'i') {
+                switch (fst.tid) {
+                case 'o':
+                    tid = 'O';
+                    var = std::pair<char, StrInt>{std::get<char>(fst.var), std::get<StrInt>(snd.var)};
+                    break;
+                case 'c':
+                    tid = 'C';
+                    var = std::pair<char, StrInt>{std::get<char>(fst.var), std::get<StrInt>(snd.var)};
+                    break;
+                case 'O':
+                    tid = 'i';
+                    var = oprs.at(std::get<std::pair<char, StrInt>>(fst.var).first)(std::get<StrInt>(snd.var), std::get<std::pair<char, StrInt>>(fst.var).second);
+                    break;
+                case 'C':
+                    tid = ':';
+                    var = cmps.at(std::get<std::pair<char, StrInt>>(fst.var).first)(std::get<StrInt>(snd.var), std::get<std::pair<char, StrInt>>(fst.var).second)
+                        ? Node<std::pair<std::string, Tree>>::make("T", Tree(':', Node<std::pair<std::string, Tree>>::make("F", Tree('$', "T"))))
+                        : Node<std::pair<std::string, Tree>>::make("T", Tree(':', Node<std::pair<std::string, Tree>>::make("F", Tree('$', "F"))));
+                    break;
+                }
+            }
+        } break;
         case '#': {
             auto tmp = std::get<std::shared_ptr<std::pair<Tree, bool>>>(var);
             if (not tmp->second) {
-                tmp->first.calculate(depth - 1);
+                tmp->first.calculate();
                 tmp->second = true;
             }
             *this = tmp->first;
         } break;
-        case '|': {
-            auto &fst = std::get<Node<std::pair<Tree, Tree>>>(var)->first;
-            auto &snd = std::get<Node<std::pair<Tree, Tree>>>(var)->second;
-            fst.calculate(depth - 1);
-            if (fst.tid == ':') {
-                auto nod = std::move(std::get<Node<std::pair<std::string, Tree>>>(fst.var));
-                nod->second.apply(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), nod->first);
-                *this = std::move(nod->second);
-                calculate(depth - 1);
-            } else {
-                snd.calculate(depth - 1);
-                if (snd.tid == 'i') {
-                    switch (fst.tid) {
-                    case 'o':
-                        tid = 'O';
-                        var = std::pair<char, StrInt>{std::get<char>(fst.var), std::get<StrInt>(snd.var)};
-                        break;
-                    case 'c':
-                        tid = 'C';
-                        var = std::pair<char, StrInt>{std::get<char>(fst.var), std::get<StrInt>(snd.var)};
-                        break;
-                    case 'O':
-                        tid = 'i';
-                        var = oprs.at(std::get<std::pair<char, StrInt>>(fst.var).first)(std::get<StrInt>(snd.var), std::get<std::pair<char, StrInt>>(fst.var).second);
-                        break;
-                    case 'C':
-                        tid = ':';
-                        var = cmps.at(std::get<std::pair<char, StrInt>>(fst.var).first)(std::get<StrInt>(snd.var), std::get<std::pair<char, StrInt>>(fst.var).second)
-                             ? Node<std::pair<std::string, Tree>>::make("T", Tree(':', Node<std::pair<std::string, Tree>>::make("F", Tree('$', "T"))))
-                             : Node<std::pair<std::string, Tree>>::make("T", Tree(':', Node<std::pair<std::string, Tree>>::make("F", Tree('$', "F"))));
-                        break;
-                    }
-                }
+        case '!':
+            if (auto const &it = map<SET>.find(std::get<std::string>(var)); it != map<SET>.end()) {
+                *this = it->second.
+                deep_copy(); break;
             }
-        } break;
+            throw std::runtime_error("undefined symbol: !" + std::get<std::string>(var));
+        case '&':
+            if (auto const &it = map<DEF>.find(std::get<std::string>(var)); it != map<DEF>.end()) {
+                *this = it->second;
+                calculate(); break;
+            }
+            throw std::runtime_error("undefined symbol: &" + std::get<std::string>(var));
+        case '$':
+            throw std::runtime_error("unbound parameter: $" + std::get<std::string>(var));
         }
     }
     std::pair<std::string, std::pair<bool, bool>> translate() const {
@@ -251,6 +252,7 @@ public:
     }
 };
 int main(int argc, char *argv[]) {
+    stack_top = &argc;
     bool check_stdin = true;
     bool check_stdout = true;
     bool check_stderr = true;
