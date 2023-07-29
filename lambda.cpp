@@ -12,15 +12,15 @@
 #endif
 #if defined _WIN32
 #include <Windows.h>
-#pragma comment(linker, "/STACK:16384000")
 #elif defined __unix__
 #include <unistd.h>
 #endif
 #define SET 1
 #define DEF 0
-#define STACK_ERR 8192000
-static int *stack_top;
-static bool stack_err(int dummy = 0) {
+#define STACK_MAX 8388608
+#define STACK_ERR 4194304
+inline int *stack_top;
+inline bool stack_err(int dummy = 0) {
     return (char *)stack_top - (char *)&dummy >= STACK_ERR;
 }
 typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
@@ -64,14 +64,14 @@ inline bool operator>>(std::string &exp, std::string &sym) {
 class Tree {
     template <bool SPC>
     static inline std::unordered_map<std::string, Tree const> map;
-    using Data = std::variant<std::string, StrInt, char, std::pair<char, StrInt>, Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>, std::shared_ptr<std::pair<Tree, bool>>>;
+    using VarT = std::variant<std::string, StrInt, char, std::pair<char, StrInt>, Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>, std::shared_ptr<std::pair<Tree, bool>>>;
     char tid;
-    Data var;
+    VarT var;
     template <typename T>
     Tree(char tid, T &&var): tid(tid), var(static_cast<T &&>(var)) {}
 public:
     template <bool SPC>
-    static auto &put(std::string const &key, Tree &&val) {
+    static auto const &put(std::string const &key, Tree &&val) {
         if constexpr (SPC == SET) {
             val.calculate();
         }
@@ -86,7 +86,27 @@ public:
     }
     template <bool SPC>
     static void clr() {
-        map<SPC>.clear();
+        return map<SPC>.clear();
+    }
+    static Tree parse(std::string &&exp) {
+        std::string sym;
+        auto build = [&](Tree &&snd) { return snd; };
+        if (!(exp >> sym)) {
+            throw std::runtime_error("empty expression");
+        }
+        return sym.back() == ':'
+            ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
+            : parse(std::move(exp), build(lex(std::move(sym))));
+    }
+    static Tree parse(std::string &&exp, Tree &&fst) {
+        std::string sym;
+        auto build = [&](Tree &&snd) { return Tree('|', Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd))); };
+        if (!(exp >> sym)) {
+            return fst;
+        }
+        return sym.back() == ':'
+            ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
+            : parse(std::move(exp), build(lex(std::move(sym))));
     }
     static Tree lex(std::string &&sym) {
         if (sym.front() == '(' && sym.back() == ')') {
@@ -107,63 +127,6 @@ public:
             return Tree('s', std::move(sym));
         }
     }
-    static Tree parse(std::string &&exp, Tree &&fst) {
-        std::string sym;
-        auto build = [&](Tree &&snd) { return Tree('|', Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd))); };
-        if (!(exp >> sym)) {
-            return fst;
-        }
-        return sym.back() == ':'
-            ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
-            : parse(std::move(exp), build(lex(std::move(sym))));
-    }
-    static Tree parse(std::string &&exp) {
-        std::string sym;
-        auto build = [&](Tree &&snd) { return snd; };
-        if (!(exp >> sym)) {
-            throw std::runtime_error("empty expression");
-        }
-        return sym.back() == ':'
-            ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
-            : parse(std::move(exp), build(lex(std::move(sym))));
-    }
-    void apply(std::shared_ptr<std::pair<Tree, bool>> const &ptr, std::string const &par) {
-        switch (tid) {
-        case '|':
-            std::get<Node<std::pair<Tree, Tree>>>(var)->first.apply(ptr, par);
-            std::get<Node<std::pair<Tree, Tree>>>(var)->second.apply(ptr, par);
-            break;
-        case ':':
-            if (std::get<Node<std::pair<std::string, Tree>>>(var)->first != par) {
-                std::get<Node<std::pair<std::string, Tree>>>(var)->second.apply(ptr, par);
-            }
-            break;
-        case '$':
-            if (std::get<std::string>(var) == par) {
-                tid = '#';
-                var = ptr;
-            }
-            break;
-        }
-    }
-    Tree deep_copy() const {
-        switch (tid) {
-        case '|':
-            return Tree('|', Node<std::pair<Tree, Tree>>::make(
-                std::get<Node<std::pair<Tree, Tree>>>(var)->first.deep_copy(),
-                std::get<Node<std::pair<Tree, Tree>>>(var)->second.deep_copy()));
-        case ':':
-            return Tree(':', Node<std::pair<std::string, Tree>>::make(
-                std::get<Node<std::pair<std::string, Tree>>>(var)->first,
-                std::get<Node<std::pair<std::string, Tree>>>(var)->second.deep_copy()));
-        case '#':
-            return Tree('#', std::make_shared<std::pair<Tree, bool>>(
-                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->first.deep_copy(),
-                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->second));
-        default:
-            return *this;
-        }
-    }
     void calculate() {
         if (stack_err()) {
             throw std::runtime_error("recursion too deep");
@@ -174,7 +137,7 @@ public:
             auto &snd = std::get<Node<std::pair<Tree, Tree>>>(var)->second;
             if (fst.calculate(), fst.tid == ':') {
                 auto nod = std::move(std::get<Node<std::pair<std::string, Tree>>>(fst.var));
-                nod->second.apply(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), nod->first);
+                nod->second.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), nod->first);
                 *this = std::move(nod->second);
                 calculate();
             } else if (snd.calculate(), snd.tid == 'i') {
@@ -222,6 +185,43 @@ public:
             throw std::runtime_error("undefined symbol: &" + std::get<std::string>(var));
         case '$':
             throw std::runtime_error("unbound parameter: $" + std::get<std::string>(var));
+        }
+    }
+    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &ptr, std::string const &par) {
+        switch (tid) {
+        case '|':
+            std::get<Node<std::pair<Tree, Tree>>>(var)->first.substitute(ptr, par);
+            std::get<Node<std::pair<Tree, Tree>>>(var)->second.substitute(ptr, par);
+            break;
+        case ':':
+            if (std::get<Node<std::pair<std::string, Tree>>>(var)->first != par) {
+                std::get<Node<std::pair<std::string, Tree>>>(var)->second.substitute(ptr, par);
+            }
+            break;
+        case '$':
+            if (std::get<std::string>(var) == par) {
+                tid = '#';
+                var = ptr;
+            }
+            break;
+        }
+    }
+    Tree deep_copy() const {
+        switch (tid) {
+        case '|':
+            return Tree('|', Node<std::pair<Tree, Tree>>::make(
+                std::get<Node<std::pair<Tree, Tree>>>(var)->first.deep_copy(),
+                std::get<Node<std::pair<Tree, Tree>>>(var)->second.deep_copy()));
+        case ':':
+            return Tree(':', Node<std::pair<std::string, Tree>>::make(
+                std::get<Node<std::pair<std::string, Tree>>>(var)->first,
+                std::get<Node<std::pair<std::string, Tree>>>(var)->second.deep_copy()));
+        case '#':
+            return Tree('#', std::make_shared<std::pair<Tree, bool>>(
+                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->first.deep_copy(),
+                std::get<std::shared_ptr<std::pair<Tree, bool>>>(var)->second));
+        default:
+            return *this;
         }
     }
     std::pair<std::string, std::pair<bool, bool>> translate() const {
