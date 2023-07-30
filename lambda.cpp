@@ -90,20 +90,20 @@ public:
     }
     static Tree parse(std::string &&exp) {
         std::string sym;
-        auto build = [&](Tree &&snd) { return snd; };
         if (!(exp >> sym)) {
             throw std::runtime_error("empty expression");
         }
+        auto build = [&](Tree &&snd) { return std::move(snd); };
         return sym.back() == ':'
             ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
             : parse(std::move(exp), build(lex(std::move(sym))));
     }
     static Tree parse(std::string &&exp, Tree &&fst) {
         std::string sym;
-        auto build = [&](Tree &&snd) { return Tree('|', Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd))); };
         if (!(exp >> sym)) {
-            return fst;
+            return std::move(fst);
         }
+        auto build = [&](Tree &&snd) { return Tree('|', Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd))); };
         return sym.back() == ':'
             ? build(Tree(':', Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp)))))
             : parse(std::move(exp), build(lex(std::move(sym))));
