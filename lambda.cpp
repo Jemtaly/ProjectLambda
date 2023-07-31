@@ -73,8 +73,8 @@ class Tree {
     std::variant<
         std::string, std::string,
         std::string, StrInt,
-        char, std::pair<char, StrInt>,
-        char, std::pair<char, StrInt>,
+        std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
+        std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
         std::string, std::shared_ptr<std::pair<Tree, bool>>>
         var;
@@ -133,9 +133,9 @@ public:
         } else if (sym.front() == '!') {
             return Tree(std::in_place_index<Token::Set>, sym.substr(1));
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
-            return Tree(std::in_place_index<Token::Opr>, o->first);
+            return Tree(std::in_place_index<Token::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
-            return Tree(std::in_place_index<Token::Cmp>, c->first);
+            return Tree(std::in_place_index<Token::Cmp>, *c);
         } else try {
             return Tree(std::in_place_index<Token::Int>, StrInt::from_string(sym));
         } catch (...) {
@@ -158,16 +158,16 @@ public:
             } else if (snd.calculate(), snd.var.index() == Token::Int) {
                 switch (fst.var.index()) {
                 case Token::Opr:
-                    var.emplace<Token::OprInt>(std::pair<char, StrInt>{std::get<Token::Opr>(fst.var), std::get<Token::Int>(snd.var)});
+                    var = std::make_pair(std::get<Token::Opr>(fst.var), std::get<Token::Int>(snd.var));
                     break;
                 case Token::Cmp:
-                    var.emplace<Token::CmpInt>(std::pair<char, StrInt>{std::get<Token::Cmp>(fst.var), std::get<Token::Int>(snd.var)});
+                    var = std::make_pair(std::get<Token::Cmp>(fst.var), std::get<Token::Int>(snd.var));
                     break;
                 case Token::OprInt:
-                    var = oprs.at(std::get<Token::OprInt>(fst.var).first)(std::get<Token::Int>(snd.var), std::get<Token::OprInt>(fst.var).second);
+                    var = std::get<Token::OprInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::OprInt>(fst.var).second);
                     break;
                 case Token::CmpInt:
-                    var = cmps.at(std::get<Token::CmpInt>(fst.var).first)(std::get<Token::Int>(snd.var), std::get<Token::CmpInt>(fst.var).second)
+                    var = std::get<Token::CmpInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::CmpInt>(fst.var).second)
                         ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
                         : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
                     break;
@@ -251,13 +251,13 @@ public:
         case Token::Int:
             return {std::get<Token::Int>(var).to_string(), {0, 0}};
         case Token::Opr:
-            return {std::string{std::get<Token::Opr>(var)}, {0, 0}};
+            return {std::string{std::get<Token::Opr>(var).first}, {0, 0}};
         case Token::Cmp:
-            return {std::string{std::get<Token::Cmp>(var)}, {0, 0}};
+            return {std::string{std::get<Token::Cmp>(var).first}, {0, 0}};
         case Token::OprInt:
-            return {std::string{std::get<Token::OprInt>(var).first, ' '} + std::get<Token::OprInt>(var).second.to_string(), {0, 1}};
+            return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), {0, 1}};
         case Token::CmpInt:
-            return {std::string{std::get<Token::CmpInt>(var).first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), {0, 1}};
+            return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), {0, 1}};
         case Token::App:
             auto fst = std::get<Token::App>(var)->first.translate();
             auto snd = std::get<Token::App>(var)->second.translate();
