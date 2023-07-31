@@ -44,31 +44,31 @@ clang++ lambda.cpp -std=c++17 -Os -o lambda.exe
 ### First example
 
 ```
-cal (x: y: $y $x) world! Hello,
-# output: Hello, world!
+cal (a: op: b: $op $b $a) - 3 10
+# output: 7
 ```
 
-**Computational procedure:** `(x: y: $y $x) world! Hello,` => `(y: $y world!) Hello,` => `Hello, world!`
+**Computational procedure:** `(a: op: b: $op $b $a) 10 - 3` => `(op: b: $op $b 10)` => `(b: - $b 10) 3` => `- 3 10` => `7`
 
 ### Lazy evaluation
 
 ```
-cal (x: y: $y) ((f: $f $f) f: $f $f) ((a: o: b: $o $b $a) 12 / 4)
+cal (x: y: $y) ((f: $f $f) f: $f $f) 0
 # output: 3
 ```
 
-**Computational procedure:** `(x: y: $y) ((f: $f $f) f: $f $f) ((a: o: b: $o $b $a) 12 / 4)` => `(y: $y) ((a: o: b: $o $b $a) 12 / 4)` => `(a: o: b: $o $b $a) 12 / 4` => `/ 4 12` => `3`
+**Computational procedure:** `(x: y: $y) ((f: $f $f) f: $f $f) ((a: o: b: $o $b $a) 12 / 4)` => `(y: $y) 0` => `0`
 
 **Explain:** `(f: $f $f) f: $f $f` is the smallest term that has no normal form, the term reduces to itself in a single β-reduction, and therefore the reduction process will never terminate (until the stack overflows). However, since we use lazy evaluation, it will not be evaluated until it is called, so the program will not be stuck.
 
 ### Scope of formal parameters
 
 ```
-cal (x: y: x: $x $y) a b
-# output: b
+cal (x: x: $x) 1 2
+# output: 2
 ```
 
-**Computational procedure:** `(x: y: x: $x $y) a b` => `(y: x: $x $y) b` => `(x: $x) b` => `b`
+**Computational procedure:** `(x: x: $x $y) 1 2` => `(x: $x) 2` => `2`
 
 **Explain:** When there are multiple parameters with the same name, the internal formal parameter will match the nearest actual parameter.
 
@@ -105,7 +105,7 @@ cal &fact 99
 
 ```
 set Y g: (x: $g ($x $x)) x: $g ($x $x)
-set G f: n: = 0 $n 1 (* $n ($f (- 1 $n)))
+set G f: n: > 0 $n (* $n ($f (- 1 $n))) 1
 set fact !Y !G
 cal !fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
