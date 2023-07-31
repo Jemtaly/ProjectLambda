@@ -40,12 +40,6 @@ public:
     ~Node() {
         delete data;
     }
-    static Node make(T const &value) {
-        return Node(new T(value));
-    }
-    static Node make(T &&value) {
-        return Node(new T(std::move(value)));
-    }
     template <typename... Args>
     static Node make(Args &&...args) {
         return Node(new T(std::forward<Args>(args)...));

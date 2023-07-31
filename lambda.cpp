@@ -15,8 +15,8 @@
 #elif defined __unix__
 #include <unistd.h>
 #endif
-#define SET 1
 #define DEF 0
+#define SET 1
 #define STACK_MAX 8388608
 #define STACK_ERR 4194304
 inline int *stack_top;
@@ -177,12 +177,6 @@ public:
             }
             *this = tmp->first;
         } break;
-        case Token::Set:
-            if (auto const &it = map<SET>.find(std::get<Token::Set>(var)); it != map<SET>.end()) {
-                *this = it->second.deep_copy();
-                break;
-            }
-            throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
         case Token::Def:
             if (auto const &it = map<DEF>.find(std::get<Token::Def>(var)); it != map<DEF>.end()) {
                 *this = it->second;
@@ -190,6 +184,12 @@ public:
                 break;
             }
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
+        case Token::Set:
+            if (auto const &it = map<SET>.find(std::get<Token::Set>(var)); it != map<SET>.end()) {
+                *this = it->second.deep_copy();
+                break;
+            }
+            throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
         case Token::Par:
             throw std::runtime_error("unbound parameter: $" + std::get<Token::Par>(var));
         }
@@ -289,38 +289,38 @@ int main(int argc, char *argv[]) {
         try {
             if (!(exp >> buf) || buf == "#") {
                 continue;
-            } else if (buf == "set") {
-                if (exp >> buf) {
-                    Tree::put<SET>(buf, Tree::parse(std::move(exp)));
-                } else {
-                    throw std::runtime_error("missing symbol after set");
-                }
             } else if (buf == "def") {
                 if (exp >> buf) {
                     Tree::put<DEF>(buf, Tree::parse(std::move(exp)));
                 } else {
                     throw std::runtime_error("missing symbol after def");
                 }
-            } else if (buf == "cal") {
-                auto &res = Tree::put<SET>("", Tree::parse(std::move(exp)));
-                std::cerr << ps_out;
-                std::cout << res.translate().first << std::endl;
+            } else if (buf == "set") {
+                if (exp >> buf) {
+                    Tree::put<SET>(buf, Tree::parse(std::move(exp)));
+                } else {
+                    throw std::runtime_error("missing symbol after set");
+                }
             } else if (buf == "fmt") {
                 auto &res = Tree::put<DEF>("", Tree::parse(std::move(exp)));
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
+            } else if (buf == "cal") {
+                auto &res = Tree::put<SET>("", Tree::parse(std::move(exp)));
+                std::cerr << ps_out;
+                std::cout << res.translate().first << std::endl;
             } else if (buf == "dir") {
-                for (auto const &l : Tree::dir<SET>()) {
-                    std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "!" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
-                }
                 for (auto const &l : Tree::dir<DEF>()) {
                     std::cerr << ps_out;
                     std::cout << std::left << std::setw(10) << "&" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
                 }
+                for (auto const &l : Tree::dir<SET>()) {
+                    std::cerr << ps_out;
+                    std::cout << std::left << std::setw(10) << "!" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
+                }
             } else if (buf == "clr") {
-                Tree::clr<SET>();
                 Tree::clr<DEF>();
+                Tree::clr<SET>();
             } else if (buf == "end") {
                 end = true;
             } else {
