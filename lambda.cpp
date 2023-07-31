@@ -62,28 +62,28 @@ inline bool operator>>(std::string &exp, std::string &sym) {
     return i > j;
 }
 class Tree {
+    friend Node<std::pair<std::string, Tree>>;
+    friend Node<std::pair<Tree, Tree>>;
+    template <bool Spc>
+    static inline std::unordered_map<std::string, Tree const> map;
     enum Token: std::size_t {
-        Set, Def,
-        Str, Int,
+        Def, Set,
+        Par, Arg,
+        App, Fun,
         Opr, OprInt,
         Cmp, CmpInt,
-        App, Fun,
-        Par, Ptr,
+        Int,
     };
     std::variant<
         std::string, std::string,
-        std::string, StrInt,
+        std::string, std::shared_ptr<std::pair<Tree, bool>>,
+        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
-        std::string, std::shared_ptr<std::pair<Tree, bool>>>
+        StrInt>
         var;
-    friend Node<std::pair<std::string, Tree>>;
-    friend Node<std::pair<Tree, Tree>>;
     template <typename... Args>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
-    template <bool Spc>
-    static inline std::unordered_map<std::string, Tree const> map;
 public:
     template <bool Spc>
     static auto const &put(std::string const &key, Tree &&val) {
@@ -139,7 +139,7 @@ public:
         } else try {
             return Tree(std::in_place_index<Token::Int>, StrInt::from_string(sym));
         } catch (...) {
-            return Tree(std::in_place_index<Token::Str>, std::move(sym));
+            throw std::runtime_error("invalid symbol: " + sym);
         }
     }
     void calculate() {
@@ -155,27 +155,22 @@ public:
                 nod->second.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), nod->first);
                 *this = std::move(nod->second);
                 calculate();
-            } else if (snd.calculate(), snd.var.index() == Token::Int) {
-                switch (fst.var.index()) {
-                case Token::Opr:
-                    var = std::make_pair(std::get<Token::Opr>(fst.var), std::get<Token::Int>(snd.var));
-                    break;
-                case Token::Cmp:
-                    var = std::make_pair(std::get<Token::Cmp>(fst.var), std::get<Token::Int>(snd.var));
-                    break;
-                case Token::OprInt:
-                    var = std::get<Token::OprInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::OprInt>(fst.var).second);
-                    break;
-                case Token::CmpInt:
-                    var = std::get<Token::CmpInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::CmpInt>(fst.var).second)
-                        ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
-                        : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
-                    break;
-                }
+            } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int)) {
+                var = std::make_pair(std::get<Token::Opr>(fst.var), std::get<Token::Int>(snd.var));
+            } else if (fst.var.index() == Token::Cmp && (snd.calculate(), snd.var.index() == Token::Int)) {
+                var = std::make_pair(std::get<Token::Cmp>(fst.var), std::get<Token::Int>(snd.var));
+            } else if (fst.var.index() == Token::OprInt && (snd.calculate(), snd.var.index() == Token::Int)) {
+                var = std::get<Token::OprInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::OprInt>(fst.var).second);
+            } else if (fst.var.index() == Token::CmpInt && (snd.calculate(), snd.var.index() == Token::Int)) {
+                var = std::get<Token::CmpInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::CmpInt>(fst.var).second)
+                    ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
+                    : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
+            } else {
+                throw std::runtime_error("invalid application: " + fst.translate().first + " on " + snd.translate().first);
             }
         } break;
-        case Token::Ptr: {
-            auto tmp = std::get<Token::Ptr>(var);
+        case Token::Arg: {
+            auto tmp = std::get<Token::Arg>(var);
             if (not tmp->second) {
                 tmp->first.calculate();
                 tmp->second = true;
@@ -184,34 +179,35 @@ public:
         } break;
         case Token::Set:
             if (auto const &it = map<SET>.find(std::get<Token::Set>(var)); it != map<SET>.end()) {
-                *this = it->second.
-                deep_copy(); break;
+                *this = it->second.deep_copy();
+                break;
             }
             throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
         case Token::Def:
             if (auto const &it = map<DEF>.find(std::get<Token::Def>(var)); it != map<DEF>.end()) {
                 *this = it->second;
-                calculate(); break;
+                calculate();
+                break;
             }
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
         case Token::Par:
             throw std::runtime_error("unbound parameter: $" + std::get<Token::Par>(var));
         }
     }
-    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &ptr, std::string const &par) {
+    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &par) {
         switch (var.index()) {
         case Token::App:
-            std::get<Token::App>(var)->first.substitute(ptr, par);
-            std::get<Token::App>(var)->second.substitute(ptr, par);
+            std::get<Token::App>(var)->first.substitute(arg, par);
+            std::get<Token::App>(var)->second.substitute(arg, par);
             break;
         case Token::Fun:
             if (std::get<Token::Fun>(var)->first != par) {
-                std::get<Token::Fun>(var)->second.substitute(ptr, par);
+                std::get<Token::Fun>(var)->second.substitute(arg, par);
             }
             break;
         case Token::Par:
             if (std::get<Token::Par>(var) == par) {
-                var = ptr;
+                var = arg;
             }
             break;
         }
@@ -226,10 +222,10 @@ public:
             return Node<std::pair<std::string, Tree>>::make(
                 std::get<Token::Fun>(var)->first,
                 std::get<Token::Fun>(var)->second.deep_copy());
-        case Token::Ptr:
+        case Token::Arg:
             return std::make_shared<std::pair<Tree, bool>>(
-                std::get<Token::Ptr>(var)->first.deep_copy(),
-                std::get<Token::Ptr>(var)->second);
+                std::get<Token::Arg>(var)->first.deep_copy(),
+                std::get<Token::Arg>(var)->second);
         default:
             return *this;
         }
@@ -244,10 +240,8 @@ public:
             return {"&" + std::get<Token::Def>(var), {0, 0}};
         case Token::Set:
             return {"!" + std::get<Token::Set>(var), {0, 0}};
-        case Token::Ptr:
-            return std::get<Token::Ptr>(var)->first.translate();
-        case Token::Str:
-            return {std::get<Token::Str>(var), {0, 0}};
+        case Token::Arg:
+            return std::get<Token::Arg>(var)->first.translate();
         case Token::Int:
             return {std::get<Token::Int>(var).to_string(), {0, 0}};
         case Token::Opr:
@@ -299,13 +293,13 @@ int main(int argc, char *argv[]) {
                 if (exp >> buf) {
                     Tree::put<SET>(buf, Tree::parse(std::move(exp)));
                 } else {
-                    throw std::runtime_error("missing symbol");
+                    throw std::runtime_error("missing symbol after set");
                 }
             } else if (buf == "def") {
                 if (exp >> buf) {
                     Tree::put<DEF>(buf, Tree::parse(std::move(exp)));
                 } else {
-                    throw std::runtime_error("missing symbol");
+                    throw std::runtime_error("missing symbol after def");
                 }
             } else if (buf == "cal") {
                 auto &res = Tree::put<SET>("", Tree::parse(std::move(exp)));
