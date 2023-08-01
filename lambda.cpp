@@ -186,7 +186,8 @@ public:
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
         case Token::Set:
             if (auto const &it = map<SET>.find(std::get<Token::Set>(var)); it != map<SET>.end()) {
-                *this = it->second.deep_copy();
+                std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> map;
+                *this = it->second.deepcopy(map);
                 break;
             }
             throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
@@ -212,20 +213,23 @@ public:
             break;
         }
     }
-    Tree deep_copy() const {
+    Tree deepcopy(std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> &map) const {
         switch (var.index()) {
         case Token::App:
             return Node<std::pair<Tree, Tree>>::make(
-                std::get<Token::App>(var)->first.deep_copy(),
-                std::get<Token::App>(var)->second.deep_copy());
+                std::get<Token::App>(var)->first.deepcopy(map),
+                std::get<Token::App>(var)->second.deepcopy(map));
         case Token::Fun:
             return Node<std::pair<std::string, Tree>>::make(
                 std::get<Token::Fun>(var)->first,
-                std::get<Token::Fun>(var)->second.deep_copy());
+                std::get<Token::Fun>(var)->second.deepcopy(map));
         case Token::Arg:
-            return std::make_shared<std::pair<Tree, bool>>(
-                std::get<Token::Arg>(var)->first.deep_copy(),
-                std::get<Token::Arg>(var)->second);
+            if (auto const &it = map.find(std::get<Token::Arg>(var)); it != map.end()) {
+                return it->second;
+            }
+            return map.emplace(std::get<Token::Arg>(var), std::make_shared<std::pair<Tree, bool>>(
+                std::get<Token::Arg>(var)->first.deepcopy(map),
+                std::get<Token::Arg>(var)->second)).first->second;
         default:
             return *this;
         }
