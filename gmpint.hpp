@@ -13,6 +13,9 @@ public:
     std::string to_string() const {
         return data.get_str();
     }
+    operator bool() const {
+        return data != 0;
+    }
     friend inline StrInt operator+(StrInt const &, StrInt const &);
     friend inline StrInt operator-(StrInt const &, StrInt const &);
     friend inline StrInt operator*(StrInt const &, StrInt const &);

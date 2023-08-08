@@ -16,27 +16,6 @@ class StrInt {
         }
     }
 public:
-    StrInt(StrInt const &rval):
-        len(rval.len), abs(rval.abs), ctr(rval.ctr) {
-        ++*ctr;
-    }
-    StrInt &operator=(StrInt const &rval) {
-        ++*rval.ctr;
-        if (--*ctr == 0) {
-            delete[] abs;
-            delete ctr;
-        }
-        len = rval.len;
-        abs = rval.abs;
-        ctr = rval.ctr;
-        return *this;
-    }
-    ~StrInt() {
-        if (--*ctr == 0) {
-            delete[] abs;
-            delete ctr;
-        }
-    }
     static StrInt from_string(std::string const &str) {
         size_t len = str.size() - (str[0] == '+' || str[0] == '-');
         int8_t *abs = new int8_t[len + 1];
@@ -91,6 +70,30 @@ public:
             str[1] = '0';
             return str + 1;
         }
+    }
+    StrInt(StrInt const &rval):
+        len(rval.len), abs(rval.abs), ctr(rval.ctr) {
+        ++*ctr;
+    }
+    StrInt &operator=(StrInt const &rval) {
+        ++*rval.ctr;
+        if (--*ctr == 0) {
+            delete[] abs;
+            delete ctr;
+        }
+        len = rval.len;
+        abs = rval.abs;
+        ctr = rval.ctr;
+        return *this;
+    }
+    ~StrInt() {
+        if (--*ctr == 0) {
+            delete[] abs;
+            delete ctr;
+        }
+    }
+    operator bool() const {
+        return len || abs[len];
     }
     friend inline StrInt operator+(StrInt const &, StrInt const &);
     friend inline StrInt operator-(StrInt const &, StrInt const &);
