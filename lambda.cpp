@@ -84,24 +84,6 @@ class Tree {
         var;
     template <typename... Args>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
-    template <bool Spc>
-    static inline std::unordered_map<std::string, Tree const> dct;
-public:
-    template <bool Spc>
-    static auto const &put(std::string const &key, Tree &&val) {
-        if constexpr (Spc == SET) {
-            val.calculate();
-        }
-        return dct<Spc>.erase(key), dct<Spc>.emplace(key, std::move(val)).first->second;
-    }
-    template <bool Spc>
-    static auto const &dir() {
-        return dct<Spc>;
-    }
-    template <bool Spc>
-    static void clr() {
-        return dct<Spc>.clear();
-    }
     static Tree parse(std::string &&exp) {
         std::string sym;
         if (not (exp >> sym)) {
@@ -240,6 +222,25 @@ public:
             return *this;
         }
     }
+    template <bool Spc>
+    static inline std::unordered_map<std::string, Tree> dct;
+public:
+    template <bool Spc>
+    static auto const &put(std::string const &key, std::string &&exp) {
+        auto val = parse(std::move(exp));
+        if constexpr (Spc == SET) {
+            val.calculate();
+        }
+        return dct<Spc>.insert_or_assign(key, std::move(val)).first->second;
+    }
+    template <bool Spc>
+    static auto const &dir() {
+        return dct<Spc>;
+    }
+    template <bool Spc>
+    static void clr() {
+        return dct<Spc>.clear();
+    }
     std::pair<std::string, std::pair<bool, bool>> translate() const {
         switch (var.index()) {
         case Token::Fun:
@@ -304,18 +305,18 @@ int main(int argc, char *argv[]) {
                 if (not (exp >> buf)) {
                     throw std::runtime_error("missing symbol after def");
                 }
-                Tree::put<DEF>(buf, Tree::parse(std::move(exp)));
+                Tree::put<DEF>(buf, std::move(exp));
             } else if (buf == "set") {
                 if (not (exp >> buf)) {
                     throw std::runtime_error("missing symbol after set");
                 }
-                Tree::put<SET>(buf, Tree::parse(std::move(exp)));
+                Tree::put<SET>(buf, std::move(exp));
             } else if (buf == "fmt") {
-                auto &res = Tree::put<DEF>("", Tree::parse(std::move(exp)));
+                auto &res = Tree::put<DEF>("", std::move(exp));
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
             } else if (buf == "cal") {
-                auto &res = Tree::put<SET>("", Tree::parse(std::move(exp)));
+                auto &res = Tree::put<SET>("", std::move(exp));
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
             } else if (buf == "dir") {
