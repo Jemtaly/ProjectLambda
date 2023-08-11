@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <variant>
 #include "node.hpp"
+#include "slice.hpp"
 #ifdef USE_GMP
 #include "gmpint.hpp"
 #else
@@ -39,7 +40,7 @@ inline std::unordered_map<char, cmp_t> const cmps = {
     {'<', operator<},
     {'=', operator==},
 };
-inline bool operator>>(std::string &exp, std::string &sym) {
+auto read(Slice const &exp) {
     std::size_t i = 0;
     while (exp[i] == ' ') {
         i++;
@@ -59,9 +60,7 @@ inline bool operator>>(std::string &exp, std::string &sym) {
     if (c != 0) {
         throw std::runtime_error("mismatched parentheses");
     }
-    sym = exp.substr(j, i - j);
-    exp = exp.substr(i);
-    return i > j;
+    return std::make_pair(exp(j, i), exp(i, 0));
 }
 class Tree {
     friend Node<std::pair<std::string, Tree>>;
@@ -84,39 +83,39 @@ class Tree {
         var;
     template <typename... Args>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
-    static Tree parse(std::string &&exp) {
-        std::string sym;
-        if (not (exp >> sym)) {
+    static Tree parse(Slice const &exp) {
+        auto [sym, rem] = read(exp);
+        if (sym.empty()) {
             throw std::runtime_error("empty expression");
         }
         auto build = [&](auto &&snd) {
             return std::move(snd);
         };
-        return sym.back() == ':'
-            ? build(Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp))))
-            : parse(std::move(exp), build(lex(std::move(sym))));
+        return sym[-1] == ':'
+            ? build(Node<std::pair<std::string, Tree>>::make(sym(0, -1), parse(rem)))
+            : parse(rem, build(lex(sym)));
     }
-    static Tree parse(std::string &&exp, Tree &&fst) {
-        std::string sym;
-        if (not (exp >> sym)) {
+    static Tree parse(Slice const &exp, Tree &&fst) {
+        auto [sym, rem] = read(exp);
+        if (sym.empty()) {
             return std::move(fst);
         }
         auto build = [&](auto &&snd) {
             return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         };
-        return sym.back() == ':'
-            ? build(Node<std::pair<std::string, Tree>>::make(sym.substr(0, sym.size() - 1), parse(std::move(exp))))
-            : parse(std::move(exp), build(lex(std::move(sym))));
+        return sym[-1] == ':'
+            ? build(Node<std::pair<std::string, Tree>>::make(sym(0, -1), parse(rem)))
+            : parse(rem, build(lex(sym)));
     }
-    static Tree lex(std::string &&sym) {
-        if (sym.front() == '(' && sym.back() == ')') {
-            return parse(sym.substr(1, sym.size() - 2));
-        } else if (sym.front() == '$') {
-            return Tree(std::in_place_index<Token::Par>, sym.substr(1));
-        } else if (sym.front() == '&') {
-            return Tree(std::in_place_index<Token::Def>, sym.substr(1));
-        } else if (sym.front() == '!') {
-            return Tree(std::in_place_index<Token::Set>, sym.substr(1));
+    static Tree lex(Slice const &sym) {
+        if (sym[0] == '(' && sym[-1] == ')') {
+            return parse(sym(1, -1));
+        } else if (sym[0] == '$') {
+            return Tree(std::in_place_index<Token::Par>, sym(1, 0));
+        } else if (sym[0] == '&') {
+            return Tree(std::in_place_index<Token::Def>, sym(1, 0));
+        } else if (sym[0] == '!') {
+            return Tree(std::in_place_index<Token::Set>, sym(1, 0));
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
             return Tree(std::in_place_index<Token::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
@@ -124,7 +123,7 @@ class Tree {
         } else try {
             return Tree(std::in_place_index<Token::Int>, StrInt::from_string(sym));
         } catch (...) {
-            throw std::runtime_error("invalid symbol: " + sym);
+            throw std::runtime_error("invalid symbol: " + std::string(sym));
         }
     }
     void calculate() {
@@ -226,8 +225,8 @@ class Tree {
     static inline std::unordered_map<std::string, Tree> dct;
 public:
     template <bool Spc>
-    static auto const &put(std::string const &key, std::string &&exp) {
-        auto val = parse(std::move(exp));
+    static auto const &put(Slice const &exp, std::string const &key) {
+        auto val = parse(exp);
         if constexpr (Spc == SET) {
             val.calculate();
         }
@@ -289,9 +288,8 @@ int main(int argc, char *argv[]) {
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
     for (bool end = false; not end;) {
-        std::string exp, buf;
         std::cerr << ps_in;
-        std::getline(std::cin, exp);
+        Slice line = Slice::getline(std::cin);
         if (std::cin.eof()) {
             end = true;
             if (check_stderr && check_stdin) {
@@ -299,27 +297,22 @@ int main(int argc, char *argv[]) {
             }
         }
         try {
-            if (not (exp >> buf) || buf == "#") {
+            auto [cmd, exp] = read(line);
+            if (cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
-            } else if (buf == "def") {
-                if (not (exp >> buf)) {
-                    throw std::runtime_error("missing symbol after def");
-                }
-                Tree::put<DEF>(buf, std::move(exp));
-            } else if (buf == "set") {
-                if (not (exp >> buf)) {
-                    throw std::runtime_error("missing symbol after set");
-                }
-                Tree::put<SET>(buf, std::move(exp));
-            } else if (buf == "fmt") {
-                auto &res = Tree::put<DEF>("", std::move(exp));
+            } else if (cmd[0] == '&') {
+                Tree::put<DEF>(exp, cmd(1, 0));
+            } else if (cmd[0] == '!') {
+                Tree::put<SET>(exp, cmd(1, 0));
+            } else if (cmd.size() == 3 && cmd == "fmt") {
+                auto &res = Tree::put<DEF>(exp, "");
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
-            } else if (buf == "cal") {
-                auto &res = Tree::put<SET>("", std::move(exp));
+            } else if (cmd.size() == 3 && cmd == "cal") {
+                auto &res = Tree::put<SET>(exp, "");
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
-            } else if (buf == "dir") {
+            } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto const &l : Tree::dir<DEF>()) {
                     std::cerr << ps_out;
                     std::cout << std::left << std::setw(10) << "&" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
@@ -328,13 +321,13 @@ int main(int argc, char *argv[]) {
                     std::cerr << ps_out;
                     std::cout << std::left << std::setw(10) << "!" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
                 }
-            } else if (buf == "clr") {
+            } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr<DEF>();
                 Tree::clr<SET>();
-            } else if (buf == "end") {
+            } else if (cmd.size() == 3 && cmd == "end") {
                 end = true;
             } else {
-                throw std::runtime_error("unknown command: " + buf);
+                throw std::runtime_error("unknown command: " + std::string(cmd));
             }
         } catch (std::exception const &e) {
             std::cerr << "Runtime Error: " << e.what() << std::endl;
