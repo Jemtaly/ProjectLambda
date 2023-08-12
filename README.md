@@ -19,8 +19,8 @@ g++ lambda.cpp -std=c++17 -O3 -o lambda.exe
 | --- | --- |
 | `cal FORMULA` | Calculate the formula. |
 | `fmt FORMULA` | Format the formula. |
-| `set VAR FORMULA` | Caculate the formula and save it in `!VAR`. |
-| `def VAR FORMULA` | Format the formula and save it in `&VAR`. |
+| `!VAR FORMULA` | Caculate the formula and save it in `!VAR`. |
+| `&VAR FORMULA` | Format the formula and save it in `&VAR`. |
 | `dir` | List all the defined functions/variables. |
 | `clr` | Clear the defined functions/variables. |
 | `end` or <kbd>eof</kbd> | Exit the program. |
