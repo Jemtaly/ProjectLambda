@@ -68,7 +68,7 @@ cal (x: x: $x) 1 2
 # output: 2
 ```
 
-**Computational procedure:** `(x: x: $x $y) 1 2` => `(x: $x) 2` => `2`
+**Computational procedure:** `(x: x: $x) 1 2` => `(x: $x) 2` => `2`
 
 **Explain:** When there are multiple parameters with the same name, the internal formal parameter will match the nearest actual parameter.
 
