@@ -72,31 +72,31 @@ cal (x: x: $x) 1 2
 
 **Explain:** When there are multiple parameters with the same name, the internal formal parameter will match the nearest actual parameter.
 
-### Difference between `def` and `set`
+### Difference between `&VAR` and `!VAR`
 
 ```
-set x 100
-set y * !x
-def y * !x
+!x 100
+!y * !x
+&y * !x
 cal !y 2
 # output: 200
 cal &y 2
 # output: 200
-set x + 50 !x
+!x + 50 !x
 cal !y 2
 # output: 200
 cal &y 2
 # output: 300
 ```
 
-**Explain:** `set y * !x` calculate the formula and set `!y` to `* 100`, while `def y * !x` set `&y` to literally `* !x`, so whenever you call `&z`, it will be recalculated, therefore, after `set x + 50 !x` change the value of `!x` to 150, the result of `&y 2` will be changed to `300`.
+**Explain:** `!y * !x` calculate the formula and set `!y` to `* 100`, while `&y * !x` set `&y` to literally `* !x`, so whenever you call `&y`, it will be recalculated, therefore, after statement `!x + 50 !x` change the value of `!x` to 150, the result of `cal &y 2` will be changed to `300`.
 
 ### Calculating the factorial of 99 using recursion
 
 - Method A
 
 ```
-def fact n: > 0 $n (* $n (&fact (- 1 $n))) 1
+&fact n: > 0 $n (* $n (&fact (- 1 $n))) 1
 cal &fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
@@ -104,9 +104,9 @@ cal &fact 99
 - Method B (Fixed-point combinator)
 
 ```
-set Y g: (x: $g ($x $x)) x: $g ($x $x)
-set G f: n: > 0 $n (* $n ($f (- 1 $n))) 1
-set fact !Y !G
+!Y g: (x: $g ($x $x)) x: $g ($x $x)
+!G f: n: > 0 $n (* $n ($f (- 1 $n))) 1
+!fact !Y !G
 cal !fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
