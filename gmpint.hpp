@@ -16,48 +16,37 @@ public:
     operator bool() const {
         return data != 0;
     }
-    friend inline StrInt operator+(StrInt const &, StrInt const &);
-    friend inline StrInt operator-(StrInt const &, StrInt const &);
-    friend inline StrInt operator*(StrInt const &, StrInt const &);
-    friend inline StrInt operator/(StrInt const &, StrInt const &);
-    friend inline StrInt operator%(StrInt const &, StrInt const &);
-    friend inline bool operator==(StrInt const &, StrInt const &);
-    friend inline bool operator!=(StrInt const &, StrInt const &);
-    friend inline bool operator<=(StrInt const &, StrInt const &);
-    friend inline bool operator>=(StrInt const &, StrInt const &);
-    friend inline bool operator<(StrInt const &, StrInt const &);
-    friend inline bool operator>(StrInt const &, StrInt const &);
+    friend StrInt operator+(StrInt const &lval, StrInt const &rval) {
+        return StrInt(lval.data + rval.data);
+    }
+    friend StrInt operator-(StrInt const &lval, StrInt const &rval) {
+        return StrInt(lval.data - rval.data);
+    }
+    friend StrInt operator*(StrInt const &lval, StrInt const &rval) {
+        return StrInt(lval.data * rval.data);
+    }
+    friend StrInt operator/(StrInt const &lval, StrInt const &rval) {
+        return StrInt(lval.data / rval.data);
+    }
+    friend StrInt operator%(StrInt const &lval, StrInt const &rval) {
+        return StrInt(lval.data % rval.data);
+    }
+    friend bool operator>(StrInt const &lval, StrInt const &rval) {
+        return lval.data > rval.data;
+    }
+    friend bool operator<(StrInt const &lval, StrInt const &rval) {
+        return lval.data < rval.data;
+    }
+    friend bool operator>=(StrInt const &lval, StrInt const &rval) {
+        return lval.data >= rval.data;
+    }
+    friend bool operator<=(StrInt const &lval, StrInt const &rval) {
+        return lval.data <= rval.data;
+    }
+    friend bool operator==(StrInt const &lval, StrInt const &rval) {
+        return lval.data == rval.data;
+    }
+    friend bool operator!=(StrInt const &lval, StrInt const &rval) {
+        return lval.data != rval.data;
+    }
 };
-StrInt operator+(StrInt const &lval, StrInt const &rval) {
-    return StrInt(lval.data + rval.data);
-}
-StrInt operator-(StrInt const &lval, StrInt const &rval) {
-    return StrInt(lval.data - rval.data);
-}
-StrInt operator*(StrInt const &lval, StrInt const &rval) {
-    return StrInt(lval.data * rval.data);
-}
-StrInt operator/(StrInt const &lval, StrInt const &rval) {
-    return StrInt(lval.data / rval.data);
-}
-StrInt operator%(StrInt const &lval, StrInt const &rval) {
-    return StrInt(lval.data % rval.data);
-}
-bool operator==(StrInt const &lval, StrInt const &rval) {
-    return lval.data == rval.data;
-}
-bool operator!=(StrInt const &lval, StrInt const &rval) {
-    return lval.data != rval.data;
-}
-bool operator<(StrInt const &lval, StrInt const &rval) {
-    return lval.data < rval.data;
-}
-bool operator>(StrInt const &lval, StrInt const &rval) {
-    return lval.data > rval.data;
-}
-bool operator<=(StrInt const &lval, StrInt const &rval) {
-    return lval.data <= rval.data;
-}
-bool operator>=(StrInt const &lval, StrInt const &rval) {
-    return lval.data >= rval.data;
-}

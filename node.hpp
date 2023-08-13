@@ -50,7 +50,7 @@ public:
     T *operator->() const {
         return data;
     }
-    operator bool() const {
+    explicit operator bool() const {
         return data;
     }
 };

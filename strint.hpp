@@ -95,167 +95,137 @@ public:
     operator bool() const {
         return len || abs[len];
     }
-    friend inline StrInt operator+(StrInt const &, StrInt const &);
-    friend inline StrInt operator-(StrInt const &, StrInt const &);
-    friend inline StrInt operator*(StrInt const &, StrInt const &);
-    template <bool>
-    friend inline StrInt divmod(StrInt const &, StrInt const &);
-    friend inline StrInt operator/(StrInt const &, StrInt const &);
-    friend inline StrInt operator%(StrInt const &, StrInt const &);
-    template <bool, bool, bool>
-    friend inline bool compare(StrInt const &, StrInt const &);
-    friend inline bool operator>(StrInt const &, StrInt const &);
-    friend inline bool operator<(StrInt const &, StrInt const &);
-    friend inline bool operator>=(StrInt const &, StrInt const &);
-    friend inline bool operator<=(StrInt const &, StrInt const &);
-    friend inline bool operator==(StrInt const &, StrInt const &);
-    friend inline bool operator!=(StrInt const &, StrInt const &);
-};
-StrInt operator+(StrInt const &lhs, StrInt const &rhs) {
-    size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
-    int8_t *abs = new int8_t[len + 1];
-    int8_t s = 0;
-    for (size_t i = 0; i <= len; i++) {
-        s = lhs.get(i) + rhs.get(i) + (s >= 10);
-        abs[i] = s >= 10 ? s - 10 : s;
-    }
-    return StrInt(len, abs);
-}
-StrInt operator-(StrInt const &lhs, StrInt const &rhs) {
-    size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
-    int8_t *abs = new int8_t[len + 1];
-    int8_t d = 0;
-    for (size_t i = 0; i <= len; i++) {
-        d = lhs.get(i) - rhs.get(i) - (d < 0);
-        abs[i] = d < 0 ? d + 10 : d;
-    }
-    return StrInt(len, abs);
-}
-StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
-    size_t len = lhs.len + rhs.len + 1;
-    int8_t *abs = new int8_t[len + 1]();
-    for (size_t i = 0; i <= len; i++) {
-        int8_t p = 0, s = 0;
-        for (size_t j = 0; i + j <= len; j++) {
-            p = lhs.get(j) * rhs.get(i) + p / 10;
-            s = p % 10 + abs[i + j] + (s >= 10);
-            abs[i + j] = s >= 10 ? s - 10 : s;
+    friend StrInt operator+(StrInt const &lhs, StrInt const &rhs) {
+        size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
+        int8_t *abs = new int8_t[len + 1];
+        int8_t s = 0;
+        for (size_t i = 0; i <= len; i++) {
+            s = lhs.get(i) + rhs.get(i) + (s >= 10);
+            abs[i] = s >= 10 ? s - 10 : s;
         }
+        return StrInt(len, abs);
     }
-    return StrInt(len, abs);
-}
-template <bool select>
-StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
-    size_t len = lhs.len + rhs.len;
-    int8_t *pabs = new int8_t[len + 1], *nabs = new int8_t[len + 1];
-    int8_t *qabs = new int8_t[lhs.len + 1];
-    int8_t *rabs = new int8_t[rhs.len + 1];
-    for (size_t i = 0; i <= len; i++) {
-        pabs[i] = lhs.get(i);
+    friend StrInt operator-(StrInt const &lhs, StrInt const &rhs) {
+        size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
+        int8_t *abs = new int8_t[len + 1];
+        int8_t d = 0;
+        for (size_t i = 0; i <= len; i++) {
+            d = lhs.get(i) - rhs.get(i) - (d < 0);
+            abs[i] = d < 0 ? d + 10 : d;
+        }
+        return StrInt(len, abs);
     }
-    if (lhs.abs[lhs.len] == rhs.abs[rhs.len]) {
-        for (size_t i = lhs.len; i <= lhs.len; i--) {
-            for (qabs[i] = 0;; qabs[i]++) {
-                int8_t d = 0;
-                for (size_t j = 0; i + j <= len; j++) {
-                    d = pabs[i + j] - rhs.get(j) - (d < 0);
-                    nabs[i + j] = d < 0 ? d + 10 : d;
-                }
-                if (nabs[len] != pabs[len]) {
-                    break;
-                }
-                for (size_t j = 0; i + j <= len; j++) {
-                    pabs[i + j] = nabs[i + j];
-                }
+    friend StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
+        size_t len = lhs.len + rhs.len + 1;
+        int8_t *abs = new int8_t[len + 1]();
+        for (size_t i = 0; i <= len; i++) {
+            int8_t p = 0, s = 0;
+            for (size_t j = 0; i + j <= len; j++) {
+                p = lhs.get(j) * rhs.get(i) + p / 10;
+                s = p % 10 + abs[i + j] + (s >= 10);
+                abs[i + j] = s >= 10 ? s - 10 : s;
             }
         }
-        for (size_t i = 0; i <= rhs.len; i++) {
-            rabs[i] = pabs[i];
+        return StrInt(len, abs);
+    }
+    template <bool select>
+    friend StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
+        size_t len = lhs.len + rhs.len;
+        int8_t *pabs = new int8_t[len + 1], *nabs = new int8_t[len + 1];
+        int8_t *qabs = new int8_t[lhs.len + 1];
+        int8_t *rabs = new int8_t[rhs.len + 1];
+        for (size_t i = 0; i <= len; i++) {
+            pabs[i] = lhs.get(i);
         }
-    } else {
-        for (size_t i = lhs.len; i <= lhs.len; i--) {
-            for (qabs[i] = 9;; qabs[i]--) {
-                int8_t s = 0;
-                for (size_t j = 0; i + j <= len; j++) {
-                    s = pabs[i + j] + rhs.get(j) + (s >= 10);
-                    nabs[i + j] = s >= 10 ? s - 10 : s;
-                }
-                if (nabs[len] != pabs[len]) {
-                    break;
-                }
-                for (size_t j = 0; i + j <= len; j++) {
-                    pabs[i + j] = nabs[i + j];
+        if (lhs.abs[lhs.len] == rhs.abs[rhs.len]) {
+            for (size_t i = lhs.len; i <= lhs.len; i--) {
+                for (qabs[i] = 0;; qabs[i]++) {
+                    int8_t d = 0;
+                    for (size_t j = 0; i + j <= len; j++) {
+                        d = pabs[i + j] - rhs.get(j) - (d < 0);
+                        nabs[i + j] = d < 0 ? d + 10 : d;
+                    }
+                    if (nabs[len] != pabs[len]) {
+                        break;
+                    }
+                    for (size_t j = 0; i + j <= len; j++) {
+                        pabs[i + j] = nabs[i + j];
+                    }
                 }
             }
+            for (size_t i = 0; i <= rhs.len; i++) {
+                rabs[i] = pabs[i];
+            }
+        } else {
+            for (size_t i = lhs.len; i <= lhs.len; i--) {
+                for (qabs[i] = 9;; qabs[i]--) {
+                    int8_t s = 0;
+                    for (size_t j = 0; i + j <= len; j++) {
+                        s = pabs[i + j] + rhs.get(j) + (s >= 10);
+                        nabs[i + j] = s >= 10 ? s - 10 : s;
+                    }
+                    if (nabs[len] != pabs[len]) {
+                        break;
+                    }
+                    for (size_t j = 0; i + j <= len; j++) {
+                        pabs[i + j] = nabs[i + j];
+                    }
+                }
+            }
+            for (size_t i = 0; i <= rhs.len; i++) {
+                rabs[i] = nabs[i];
+            }
         }
-        for (size_t i = 0; i <= rhs.len; i++) {
-            rabs[i] = nabs[i];
+        delete[] pabs;
+        delete[] nabs;
+        if (select) {
+            delete[] qabs;
+            return StrInt(rhs.len, rabs);
+        } else {
+            delete[] rabs;
+            return StrInt(lhs.len, qabs);
         }
     }
-    delete[] pabs;
-    delete[] nabs;
-    if (select) {
-        delete[] qabs;
-        return StrInt(rhs.len, rabs);
-    } else {
-        delete[] rabs;
-        return StrInt(lhs.len, qabs);
+    friend StrInt operator/(StrInt const &lhs, StrInt const &rhs) {
+        return divmod<0>(lhs, rhs);
     }
-}
-StrInt operator/(StrInt const &lhs, StrInt const &rhs) {
-    return divmod<0>(lhs, rhs);
-}
-StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
-    return divmod<1>(lhs, rhs);
-}
-template <bool gt, bool eq, bool lt>
-bool compare(StrInt const &lhs, StrInt const &rhs) {
-    if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
-        return gt;
+    friend StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
+        return divmod<1>(lhs, rhs);
     }
-    if (lhs.abs[lhs.len] > rhs.abs[rhs.len]) {
-        return lt;
-    }
-    for (size_t m = lhs.len > rhs.len ? lhs.len : rhs.len, i = m - 1; i < m; i--) {
-        if (lhs.get(i) > rhs.get(i)) {
+    template <bool gt, bool eq, bool lt>
+    friend bool compare(StrInt const &lhs, StrInt const &rhs) {
+        if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
             return gt;
         }
-        if (lhs.get(i) < rhs.get(i)) {
+        if (lhs.abs[lhs.len] > rhs.abs[rhs.len]) {
             return lt;
         }
+        for (size_t m = lhs.len > rhs.len ? lhs.len : rhs.len, i = m - 1; i < m; i--) {
+            if (lhs.get(i) > rhs.get(i)) {
+                return gt;
+            }
+            if (lhs.get(i) < rhs.get(i)) {
+                return lt;
+            }
+        }
+        return eq;
     }
-    return eq;
-}
-bool operator>(StrInt const &lhs, StrInt const &rhs) {
-    return compare<1, 0, 0>(lhs, rhs);
-}
-bool operator<=(StrInt const &lhs, StrInt const &rhs) {
-    return compare<0, 1, 1>(lhs, rhs);
-}
-bool operator<(StrInt const &lhs, StrInt const &rhs) {
-    return compare<0, 0, 1>(lhs, rhs);
-}
-bool operator>=(StrInt const &lhs, StrInt const &rhs) {
-    return compare<1, 1, 0>(lhs, rhs);
-}
-bool operator==(StrInt const &lhs, StrInt const &rhs) {
-    return compare<0, 1, 0>(lhs, rhs);
-}
-bool operator!=(StrInt const &lhs, StrInt const &rhs) {
-    return compare<1, 0, 1>(lhs, rhs);
-}
-inline StrInt &operator+=(StrInt &lhs, StrInt const &rhs) {
-    return lhs = lhs + rhs;
-}
-inline StrInt &operator-=(StrInt &lhs, StrInt const &rhs) {
-    return lhs = lhs - rhs;
-}
-inline StrInt &operator*=(StrInt &lhs, StrInt const &rhs) {
-    return lhs = lhs * rhs;
-}
-inline StrInt &operator/=(StrInt &lhs, StrInt const &rhs) {
-    return lhs = lhs / rhs;
-}
-inline StrInt &operator%=(StrInt &lhs, StrInt const &rhs) {
-    return lhs = lhs % rhs;
-}
+    friend bool operator>(StrInt const &lhs, StrInt const &rhs) {
+        return compare<1, 0, 0>(lhs, rhs);
+    }
+    friend bool operator<(StrInt const &lhs, StrInt const &rhs) {
+        return compare<0, 0, 1>(lhs, rhs);
+    }
+    friend bool operator>=(StrInt const &lhs, StrInt const &rhs) {
+        return compare<1, 1, 0>(lhs, rhs);
+    }
+    friend bool operator<=(StrInt const &lhs, StrInt const &rhs) {
+        return compare<0, 1, 1>(lhs, rhs);
+    }
+    friend bool operator==(StrInt const &lhs, StrInt const &rhs) {
+        return compare<0, 1, 0>(lhs, rhs);
+    }
+    friend bool operator!=(StrInt const &lhs, StrInt const &rhs) {
+        return compare<1, 0, 1>(lhs, rhs);
+    }
+};

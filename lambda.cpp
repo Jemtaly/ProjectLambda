@@ -21,25 +21,11 @@
 #ifndef STACK_MAX
 #define STACK_MAX 4294967296 // 4 GiB
 #endif
-inline int *stack_top;
-inline bool stack_err() {
+static int *stack_top;
+static bool stack_err() {
     int dummy;
     return (char *)stack_top - (char *)&dummy >= STACK_MAX / 2;
 }
-typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
-typedef bool (*cmp_t)(StrInt const &, StrInt const &);
-inline std::unordered_map<char, opr_t> const oprs = {
-    {'+', operator+},
-    {'-', operator-},
-    {'*', operator*},
-    {'/', operator/},
-    {'%', operator%},
-};
-inline std::unordered_map<char, cmp_t> const cmps = {
-    {'>', operator>},
-    {'<', operator<},
-    {'=', operator==},
-};
 auto read(Slice const &exp) {
     std::size_t i = 0;
     while (exp[i] == ' ') {
@@ -62,6 +48,31 @@ auto read(Slice const &exp) {
     }
     return std::make_pair(exp(j, i), exp(i, 0));
 }
+StrInt operator+(StrInt const &lval, StrInt const &rval);
+StrInt operator-(StrInt const &lval, StrInt const &rval);
+StrInt operator*(StrInt const &lval, StrInt const &rval);
+StrInt operator/(StrInt const &lval, StrInt const &rval);
+StrInt operator%(StrInt const &lval, StrInt const &rval);
+bool operator>(StrInt const &lval, StrInt const &rval);
+bool operator<(StrInt const &lval, StrInt const &rval);
+bool operator>=(StrInt const &lval, StrInt const &rval);
+bool operator<=(StrInt const &lval, StrInt const &rval);
+bool operator==(StrInt const &lval, StrInt const &rval);
+bool operator!=(StrInt const &lval, StrInt const &rval);
+typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
+typedef bool (*cmp_t)(StrInt const &, StrInt const &);
+static std::unordered_map<char, opr_t> const oprs = {
+    {'+', operator+},
+    {'-', operator-},
+    {'*', operator*},
+    {'/', operator/},
+    {'%', operator%},
+};
+static std::unordered_map<char, cmp_t> const cmps = {
+    {'>', operator>},
+    {'<', operator<},
+    {'=', operator==},
+};
 class Tree {
     friend Node<std::pair<std::string, Tree>>;
     friend Node<std::pair<Tree, Tree>>;
@@ -250,8 +261,6 @@ public:
             return {"&" + std::get<Token::Def>(var), {0, 0}};
         case Token::Set:
             return {"!" + std::get<Token::Set>(var), {0, 0}};
-        case Token::Arg:
-            return std::get<Token::Arg>(var)->first.translate();
         case Token::Int:
             return {std::get<Token::Int>(var).to_string(), {0, 0}};
         case Token::Opr:
@@ -267,6 +276,8 @@ public:
             auto snd = std::get<Token::App>(var)->second.translate();
             return {(fst.second.first ? "(" + fst.first + ")" : fst.first) + " " + (snd.second.second ? "(" + snd.first + ")" : snd.first), {snd.second.first && not snd.second.second, 1}};
         } break;
+        case Token::Arg:
+            return std::get<Token::Arg>(var)->first.translate();
         }
     }
 };
