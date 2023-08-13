@@ -21,8 +21,8 @@
 #ifndef STACK_MAX
 #define STACK_MAX 4294967296 // 4 GiB
 #endif
-static int *stack_top;
-static bool stack_err() {
+int *stack_top;
+bool stack_err() {
     int dummy;
     return (char *)stack_top - (char *)&dummy >= STACK_MAX / 2;
 }
@@ -59,21 +59,21 @@ bool operator>=(StrInt const &lval, StrInt const &rval);
 bool operator<=(StrInt const &lval, StrInt const &rval);
 bool operator==(StrInt const &lval, StrInt const &rval);
 bool operator!=(StrInt const &lval, StrInt const &rval);
-typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
-typedef bool (*cmp_t)(StrInt const &, StrInt const &);
-static std::unordered_map<char, opr_t> const oprs = {
-    {'+', operator+},
-    {'-', operator-},
-    {'*', operator*},
-    {'/', operator/},
-    {'%', operator%},
-};
-static std::unordered_map<char, cmp_t> const cmps = {
-    {'>', operator>},
-    {'<', operator<},
-    {'=', operator==},
-};
 class Tree {
+    typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
+    typedef bool (*cmp_t)(StrInt const &, StrInt const &);
+    static inline std::unordered_map<char, opr_t> const oprs = {
+        {'+', operator+},
+        {'-', operator-},
+        {'*', operator*},
+        {'/', operator/},
+        {'%', operator%},
+    };
+    static inline std::unordered_map<char, cmp_t> const cmps = {
+        {'>', operator>},
+        {'<', operator<},
+        {'=', operator==},
+    };
     friend Node<std::pair<std::string, Tree>>;
     friend Node<std::pair<Tree, Tree>>;
     enum Token: std::size_t {
