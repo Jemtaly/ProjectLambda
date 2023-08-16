@@ -31,7 +31,7 @@ g++ lambda.cpp -std=c++17 -O3 -o lambda.exe
 | --- | --- |
 | `(...)` | Applications are assumed to be left associative: `M N P` and `((M N) P)` are equivalent. |
 | `\ARG EXPR` | Lambda expression, `ARG` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `\x \y $y $x` => $\lambda x.\lambda y.y\ x$ |
-| `EXPR \|ARG` | An alternative representation of a lambda expression. Such expressions are left-conjugated and have lower precedence than right-conjugated lambda expressions. Example: `\x $x $y $z \|y \|z 1 2` => `\x (\z \y $x $y $z) 1 2` => $\lambda x.(\lambda z.\lambda y.x\ y\ z) 1 2$ |
+| `EXPR \|ARG` | An alternative representation of a lambda expression. Such expressions are left-conjugated and have lower precedence than right-conjugated lambda expressions. Example: `\x $x $y $z \|y \|z 1 2` => `\x (\z \y $x $y $z) 1 2` => $\lambda x.(\lambda z.\lambda y.x\ y\ z)\ 1\ 2$ |
 | `$ARG` | Formal parameter, used in lambda expressions. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
