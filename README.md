@@ -35,7 +35,7 @@ g++ lambda.cpp -std=c++17 -O3 -o lambda.exe
 | `$ARG` | Formal parameter, used in lambda expressions. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
-| `+` `-` `*` `\` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., $(5-2)/3$ should be represented as `/ 3 (- 2 5)`. |
+| `+` `-` `*` `/` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., $(5-2)/3$ should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
 
 **Note:** The spaces between the above symbols should not be omitted.
