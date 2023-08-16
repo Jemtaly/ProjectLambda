@@ -326,13 +326,13 @@ int main(int argc, char *argv[]) {
                 std::cerr << ps_out;
                 std::cout << res.translate().first << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
-                for (auto const &l : Tree::dir<DEF>()) {
+                for (auto const &[key, val] : Tree::dir<DEF>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "&" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
+                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate().first << std::endl;
                 }
-                for (auto const &l : Tree::dir<SET>()) {
+                for (auto const &[key, val] : Tree::dir<SET>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "!" + (l.first.size() <= 8 ? l.first : l.first.substr(0, 6) + "..") << l.second.translate().first << std::endl;
+                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate().first << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr<DEF>();
