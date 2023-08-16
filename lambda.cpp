@@ -278,7 +278,7 @@ public:
         case Token::App: {
             auto fst = std::get<Token::App>(var)->first.translate();
             auto snd = std::get<Token::App>(var)->second.translate();
-            return {(fst.second.first ? "(" + fst.first + ")" : fst.first) + " " + (snd.second.second ? "(" + snd.first + ")" : snd.first), {snd.second.first && not snd.second.second, 1}};
+            return {(fst.second.first ? "(" + std::move(fst.first) + ")" : std::move(fst.first)) + " " + (snd.second.second ? "(" + std::move(snd.first) + ")" : std::move(snd.first)), {snd.second.first && not snd.second.second, 1}};
         } break;
         case Token::Arg:
             return std::get<Token::Arg>(var)->first.translate();
