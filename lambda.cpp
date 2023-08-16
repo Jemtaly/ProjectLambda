@@ -158,13 +158,13 @@ class Tree {
                 calculate();
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
                 (std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%' || std::get<Token::Int>(snd.var))) {
-                var = std::make_pair(std::get<Token::Opr>(fst.var), std::get<Token::Int>(snd.var));
+                var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
             } else if (fst.var.index() == Token::Cmp && (snd.calculate(), snd.var.index() == Token::Int)) {
-                var = std::make_pair(std::get<Token::Cmp>(fst.var), std::get<Token::Int>(snd.var));
+                var = std::make_pair(std::get<Token::Cmp>(fst.var), std::move(std::get<Token::Int>(snd.var)));
             } else if (fst.var.index() == Token::OprInt && (snd.calculate(), snd.var.index() == Token::Int)) {
-                var = std::get<Token::OprInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::OprInt>(fst.var).second);
+                var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
             } else if (fst.var.index() == Token::CmpInt && (snd.calculate(), snd.var.index() == Token::Int)) {
-                var = std::get<Token::CmpInt>(fst.var).first.second(std::get<Token::Int>(snd.var), std::get<Token::CmpInt>(fst.var).second)
+                var = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second))
                     ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
                     : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
             } else {
