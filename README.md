@@ -30,7 +30,8 @@ g++ lambda.cpp -std=c++17 -O3 -o lambda.exe
 | symbol | meaning |
 | --- | --- |
 | `(...)` | Applications are assumed to be left associative: `M N P` and `((M N) P)` are equivalent. |
-| `ARG: EXPR` | Lambda expression, `ARG` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `x: y: $y $x` => $\lambda x.\lambda y.y\ x$. |
+| `\ARG EXPR` | Lambda expression, `ARG` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `\x \y $y $x` => $\lambda x.\lambda y.y\ x$ |
+| `EXPR \|ARG` | An alternative representation of a lambda expression. Such expressions are left-conjugated and have lower precedence than right-conjugated lambda expressions. Example: `\x $x $y $z \|y \|z 1 2` => `\x (\z \y $x $y $z) 1 2` => $\lambda x.(\lambda z.\lambda y.x\ y\ z) 1 2$ |
 | `$ARG` | Formal parameter, used in lambda expressions. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
@@ -44,31 +45,31 @@ g++ lambda.cpp -std=c++17 -O3 -o lambda.exe
 ### First example
 
 ```
-cal (a: op: b: $op $b $a) - 3 10
+cal (\a \op \b $op $b $a) - 3 10
 # output: 7
 ```
 
-**Computational procedure:** `(a: op: b: $op $b $a) 10 - 3` => `(op: b: $op $b 10)` => `(b: - $b 10) 3` => `- 3 10` => `7`
+**Computational procedure:** `(\a \op \b $op $b $a) 10 - 3` => `(\op \b $op $b 10)` => `(\b - $b 10) 3` => `- 3 10` => `7`
 
 ### Lazy evaluation
 
 ```
-cal (x: y: $y) ((f: $f $f) f: $f $f) 0
+cal (\x \y $y) ((\f $f $f) \f $f $f) 0
 # output: 3
 ```
 
-**Computational procedure:** `(x: y: $y) ((f: $f $f) f: $f $f) ((a: o: b: $o $b $a) 12 / 4)` => `(y: $y) 0` => `0`
+**Computational procedure:** `(\x \y $y) ((\f $f $f) \f $f $f) ((\a \o \b $o $b $a) 12 / 4)` => `(\y $y) 0` => `0`
 
-**Explain:** `(f: $f $f) f: $f $f` is the smallest term that has no normal form, the term reduces to itself in a single β-reduction, and therefore the reduction process will never terminate (until the stack overflows). However, since we use lazy evaluation, it will not be evaluated until it is called, so the program will not be stuck.
+**Explain:** `(\f $f $f) \f $f $f` is the smallest term that has no normal form, the term reduces to itself in a single β-reduction, and therefore the reduction process will never terminate (until the stack overflows). However, since we use lazy evaluation, it will not be evaluated until it is called, so the program will not be stuck.
 
 ### Scope of formal parameters
 
 ```
-cal (x: x: $x) 1 2
+cal (\x \x $x) 1 2
 # output: 2
 ```
 
-**Computational procedure:** `(x: x: $x) 1 2` => `(x: $x) 2` => `2`
+**Computational procedure:** `(\x \x $x) 1 2` => `(\x $x) 2` => `2`
 
 **Explain:** When there are multiple parameters with the same name, the internal formal parameter will match the nearest actual parameter.
 
@@ -96,7 +97,7 @@ cal &y 2
 - Method A
 
 ```
-&fact n: > 0 $n (* $n (&fact (- 1 $n))) 1
+&fact \n > 0 $n (* $n (&fact (- 1 $n))) 1
 cal &fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
@@ -104,9 +105,13 @@ cal &fact 99
 - Method B (Fixed-point combinator)
 
 ```
-!Y g: (x: $g ($x $x)) x: $g ($x $x)
-!G f: n: > 0 $n (* $n ($f (- 1 $n))) 1
+!Y \g (\x $g ($x $x)) \x $g ($x $x)
+!G \f \n > 0 $n (* $n ($f (- 1 $n))) 1
 !fact !Y !G
 cal !fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
+
+### Left-conjugated lambda expressions
+
+A left-conjugated lambda expression acts similarly to the `where` syntax in haskell. For example, `* (f x y z) (f x y z)` can be abbreviated to `* t t |t (f x y z)`, thus avoiding double counting of `f x y z`.
