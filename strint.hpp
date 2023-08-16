@@ -178,7 +178,7 @@ public:
         }
         delete[] pabs;
         delete[] nabs;
-        if (select) {
+        if constexpr (select) {
             delete[] qabs;
             return StrInt(rhs.len, rabs);
         } else {
@@ -192,8 +192,8 @@ public:
     friend StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
         return divmod<1>(lhs, rhs);
     }
-    template <bool gt, bool eq, bool lt>
-    friend bool compare(StrInt const &lhs, StrInt const &rhs) {
+    template <auto gt, auto eq, auto lt>
+    friend auto compare(StrInt const &lhs, StrInt const &rhs) {
         if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
             return gt;
         }
@@ -211,21 +211,21 @@ public:
         return eq;
     }
     friend bool operator>(StrInt const &lhs, StrInt const &rhs) {
-        return compare<1, 0, 0>(lhs, rhs);
+        return compare<true, false, false>(lhs, rhs);
     }
     friend bool operator<(StrInt const &lhs, StrInt const &rhs) {
-        return compare<0, 0, 1>(lhs, rhs);
+        return compare<false, false, true>(lhs, rhs);
     }
     friend bool operator>=(StrInt const &lhs, StrInt const &rhs) {
-        return compare<1, 1, 0>(lhs, rhs);
+        return compare<true, true, false>(lhs, rhs);
     }
     friend bool operator<=(StrInt const &lhs, StrInt const &rhs) {
-        return compare<0, 1, 1>(lhs, rhs);
+        return compare<false, true, true>(lhs, rhs);
     }
     friend bool operator==(StrInt const &lhs, StrInt const &rhs) {
-        return compare<0, 1, 0>(lhs, rhs);
+        return compare<false, true, false>(lhs, rhs);
     }
     friend bool operator!=(StrInt const &lhs, StrInt const &rhs) {
-        return compare<1, 0, 1>(lhs, rhs);
+        return compare<true, false, true>(lhs, rhs);
     }
 };

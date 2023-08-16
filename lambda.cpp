@@ -27,26 +27,28 @@ bool stack_err() {
     return (char *)stack_top - (char *)&dummy >= STACK_MAX / 2;
 }
 auto read(Slice const &exp) {
-    std::size_t i = 0;
-    while (exp[i] == ' ') {
-        i++;
-    }
-    std::size_t j = i;
-    std::size_t c = 0;
-    for (; i < exp.size() && (exp[i] != ' ' || c != 0); i++) {
-        switch (exp[i]) {
-        case '(':
-            c++;
-            break;
-        case ')':
-            c--;
+    auto i = exp.get_beg();
+    auto n = exp.get_end();
+    for (;; i++) {
+        if (i == n) {
+            return std::make_pair(exp.from_to(i, i), exp.from_to(i, n));
+        } else if (*i != ' ') {
             break;
         }
     }
-    if (c != 0) {
-        throw std::runtime_error("mismatched parentheses");
+    auto j = i;
+    auto c = 0;
+    for (;; i++) {
+        if ((i == n || *i == ' ') && c == 0) {
+            return std::make_pair(exp.from_to(j, i), exp.from_to(i, n));
+        } else if (i == n) {
+            throw std::runtime_error("mismatched parentheses");
+        } else if (*i == '(') {
+            c++;
+        } else if (*i == ')') {
+            c--;
+        }
     }
-    return std::make_pair(exp(j, i), exp(i, 0));
 }
 StrInt operator+(StrInt const &lval, StrInt const &rval);
 StrInt operator-(StrInt const &lval, StrInt const &rval);
