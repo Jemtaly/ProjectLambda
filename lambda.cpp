@@ -95,28 +95,30 @@ class Tree {
     template <typename... Args>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
     static Tree parse(Slice const &exp) {
-        auto [sym, rem] = read(exp);
-        if (sym.empty()) {
+        auto first = [&]() -> Tree {
             throw std::runtime_error("empty expression");
-        }
-        auto build = [&](auto &&snd) {
+        };
+        auto build = [&](auto &&snd) -> Tree {
             return std::move(snd);
         };
-        return sym[-1] == ':'
-            ? build(Node<std::pair<std::string, Tree>>::make(sym(0, -1), parse(rem)))
-            : parse(rem, build(lex(sym)));
+        auto [sym, rem] = read(exp);
+        return sym.empty()    ? first()
+             : sym[0] == '\\' ? build(Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(rem)))
+             : sym[0] == '|'  ? parse(rem, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first()))
+                              : parse(rem, build(lex(sym)));
     }
     static Tree parse(Slice const &exp, Tree &&fst) {
-        auto [sym, rem] = read(exp);
-        if (sym.empty()) {
+        auto first = [&]() -> Tree {
             return std::move(fst);
-        }
-        auto build = [&](auto &&snd) {
+        };
+        auto build = [&](auto &&snd) -> Tree {
             return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         };
-        return sym[-1] == ':'
-            ? build(Node<std::pair<std::string, Tree>>::make(sym(0, -1), parse(rem)))
-            : parse(rem, build(lex(sym)));
+        auto [sym, rem] = read(exp);
+        return sym.empty()    ? first()
+             : sym[0] == '\\' ? build(Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(rem)))
+             : sym[0] == '|'  ? parse(rem, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first()))
+                              : parse(rem, build(lex(sym)));
     }
     static Tree lex(Slice const &sym) {
         if (sym[0] == '(' && sym[-1] == ')') {
@@ -254,7 +256,7 @@ public:
     std::pair<std::string, std::pair<bool, bool>> translate() const {
         switch (var.index()) {
         case Token::Fun:
-            return {std::get<Token::Fun>(var)->first + ": " + std::get<Token::Fun>(var)->second.translate().first, {1, 0}};
+            return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<Token::Fun>(var)->second.translate().first, {1, 0}};
         case Token::Par:
             return {"$" + std::get<Token::Par>(var), {0, 0}};
         case Token::Def:
