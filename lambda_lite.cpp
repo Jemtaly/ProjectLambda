@@ -85,15 +85,15 @@ class Tree {
         Par, Arg,
         Def,
     };
-    std::variant<
+    using Var = std::variant<
         std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
         std::string, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string>
-        var;
-    template <typename... Args>
+        std::string, std::string>;
+    Var var;
+    template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
     static Tree first(Tree &&fst) {
         if (fst.var.index() == Token::Ini) {
@@ -146,12 +146,10 @@ class Tree {
             auto &fst = std::get<Token::App>(var)->first;
             auto &snd = std::get<Token::App>(var)->second;
             if (fst.calculate(), fst.var.index() == Token::Fun) {
-                auto arg = std::make_shared<std::pair<Tree, bool>>(std::move(snd), false);
-                auto par = std::move(std::get<Token::Fun>(fst.var)->first);
-                auto fun = std::move(std::get<Token::Fun>(fst.var)->second);
-                *this = std::move(fun);
-                substitute(arg, par);
-                calculate();
+                auto tmp = std::move(std::get<Token::Fun>(fst.var)->second);
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), std::move(std::get<Token::Fun>(fst.var)->first));
+                tmp.calculate();
+                *this = std::move(tmp);
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
                 (std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%' || std::get<Token::Int>(snd.var))) {
                 var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
@@ -168,12 +166,12 @@ class Tree {
             }
         } break;
         case Token::Arg: {
-            auto arg = std::get<Token::Arg>(var);
+            auto arg = std::move(std::get<Token::Arg>(var));
             if (not arg->second) {
                 arg->first.calculate();
                 arg->second = true;
             }
-            *this = arg->first;
+            *this = arg.use_count() == 1 ? std::move(arg->first) : arg->first;
         } break;
         case Token::Def:
             if (auto const &it = dct.find(std::get<Token::Def>(var)); it != dct.end()) {
