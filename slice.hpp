@@ -53,4 +53,8 @@ public:
     Slice from_to(char const *beg, char const *end) const {
         return Slice(arr, beg, end);
     }
+    void reset_to(char const *beg, char const *end) {
+        this->beg = beg;
+        this->end = end;
+    }
 };
