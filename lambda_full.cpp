@@ -1,9 +1,10 @@
 #include <iomanip>
 #include <iostream>
-#include <memory>
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include <variant>
+#include <cassert>
 #include "node.hpp"
 #include "slice.hpp"
 #ifdef USE_GMP
@@ -26,12 +27,12 @@ bool stack_err() {
     int dummy;
     return (char *)stack_top - (char *)&dummy >= STACK_MAX / 2;
 }
-auto read(Slice const &exp) {
+auto read(Slice &exp) {
     auto i = exp.get_beg();
     auto n = exp.get_end();
     for (;; i++) {
         if (i == n) {
-            return std::make_pair(exp.from_to(i, i), exp.from_to(i, n));
+            return exp.reset_to(i, n), exp.from_to(i, i);
         } else if (*i != ' ') {
             break;
         }
@@ -40,7 +41,7 @@ auto read(Slice const &exp) {
     auto c = 0;
     for (;; i++) {
         if ((i == n || *i == ' ') && c == 0) {
-            return std::make_pair(exp.from_to(j, i), exp.from_to(i, n));
+            return exp.reset_to(i, n), exp.from_to(j, i);
         } else if (i == n) {
             throw std::runtime_error("mismatched parentheses");
         } else if (*i == '(') {
@@ -79,48 +80,47 @@ class Tree {
     friend Node<std::pair<std::string, Tree>>;
     friend Node<std::pair<Tree, Tree>>;
     enum Token: std::size_t {
-        Def, Set,
-        Par, Arg,
-        App, Fun,
+        Ini, Int,
         Opr, OprInt,
         Cmp, CmpInt,
-        Int,
+        App, Fun,
+        Par, Arg,
+        Def, Set,
     };
     std::variant<
-        std::string, std::string,
-        std::string, std::shared_ptr<std::pair<Tree, bool>>,
-        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
+        std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        StrInt>
+        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
+        std::string, std::shared_ptr<std::pair<Tree, bool>>,
+        std::string, std::string>
         var;
     template <typename... Args>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
-    static Tree parse(Slice const &exp) {
-        auto first = [&]() -> Tree {
+    static Tree first(Tree &&fst) {
+        if (fst.var.index() == Token::Ini) {
             throw std::runtime_error("empty expression");
-        };
-        auto build = [&](auto &&snd) -> Tree {
-            return std::move(snd);
-        };
-        auto [sym, rem] = read(exp);
-        return sym.empty()    ? first()
-             : sym[0] == '\\' ? build(Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(rem)))
-             : sym[0] == '|'  ? parse(rem, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first()))
-                              : parse(rem, build(lex(sym)));
-    }
-    static Tree parse(Slice const &exp, Tree &&fst) {
-        auto first = [&]() -> Tree {
+        } else {
             return std::move(fst);
-        };
-        auto build = [&](auto &&snd) -> Tree {
+        }
+    }
+    static Tree build(Tree &&fst, Tree &&snd) {
+        if (fst.var.index() == Token::Ini) {
+            return std::move(snd);
+        } else {
             return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
-        };
-        auto [sym, rem] = read(exp);
-        return sym.empty()    ? first()
-             : sym[0] == '\\' ? build(Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(rem)))
-             : sym[0] == '|'  ? parse(rem, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first()))
-                              : parse(rem, build(lex(sym)));
+        }
+    }
+    static Tree parse(Slice &&exp, Tree &&fst = std::monostate()) {
+        if (auto sym = read(exp); sym.empty()) {
+            return first(std::move(fst));
+        } else if (sym[0] == '\\') {
+            return build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))));
+        } else if (sym[0] == '|') {
+            return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst))));
+        } else {
+            return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
+        }
     }
     static Tree lex(Slice const &sym) {
         if (sym[0] == '(' && sym[-1] == ')') {
@@ -152,8 +152,8 @@ class Tree {
             if (fst.calculate(), fst.var.index() == Token::Fun) {
                 auto arg = std::make_shared<std::pair<Tree, bool>>(std::move(snd), false);
                 auto par = std::move(std::get<Token::Fun>(fst.var)->first);
-                auto tmp = std::move(std::get<Token::Fun>(fst.var)->second);
-                *this = std::move(tmp);
+                auto fun = std::move(std::get<Token::Fun>(fst.var)->second);
+                *this = std::move(fun);
                 substitute(arg, par);
                 calculate();
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
@@ -168,7 +168,7 @@ class Tree {
                     ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
                     : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
             } else {
-                throw std::runtime_error("invalid application: " + fst.translate().first + " on " + snd.translate().first);
+                throw std::runtime_error("invalid application: " + std::get<0>(fst.translate()) + " on " + std::get<0>(snd.translate()));
             }
         } break;
         case Token::Arg: {
@@ -240,8 +240,8 @@ class Tree {
     static inline std::unordered_map<std::string, Tree> dct;
 public:
     template <bool Spc>
-    static auto const &put(Slice const &exp, std::string const &key) {
-        auto val = parse(exp);
+    static auto const &put(Slice &&exp, std::string const &key) {
+        auto val = parse(std::move(exp));
         if constexpr (Spc == SET) {
             val.calculate();
         }
@@ -255,35 +255,68 @@ public:
     static void clr() {
         return dct<Spc>.clear();
     }
-    std::pair<std::string, std::pair<bool, bool>> translate() const {
+    std::tuple<std::string, bool, bool> translate() const {
         switch (var.index()) {
         case Token::Fun:
-            return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<Token::Fun>(var)->second.translate().first, {1, 0}};
+            return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<0>(std::get<Token::Fun>(var)->second.translate()), 1, 0};
         case Token::Par:
-            return {"$" + std::get<Token::Par>(var), {0, 0}};
+            return {"$" + std::get<Token::Par>(var), 0, 0};
         case Token::Def:
-            return {"&" + std::get<Token::Def>(var), {0, 0}};
+            return {"&" + std::get<Token::Def>(var), 0, 0};
         case Token::Set:
-            return {"!" + std::get<Token::Set>(var), {0, 0}};
+            return {"!" + std::get<Token::Set>(var), 0, 0};
         case Token::Int:
-            return {std::get<Token::Int>(var).to_string(), {0, 0}};
+            return {std::get<Token::Int>(var).to_string(), 0, 0};
         case Token::Opr:
-            return {std::string{std::get<Token::Opr>(var).first}, {0, 0}};
+            return {std::string{std::get<Token::Opr>(var).first}, 0, 0};
         case Token::Cmp:
-            return {std::string{std::get<Token::Cmp>(var).first}, {0, 0}};
+            return {std::string{std::get<Token::Cmp>(var).first}, 0, 0};
         case Token::OprInt:
-            return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), {0, 1}};
+            return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), 0, 1};
         case Token::CmpInt:
-            return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), {0, 1}};
+            return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), 0, 1};
         case Token::App: {
-            auto fst = std::get<Token::App>(var)->first.translate();
-            auto snd = std::get<Token::App>(var)->second.translate();
-            return {(fst.second.first ? "(" + std::move(fst.first) + ")" : std::move(fst.first)) + " " + (snd.second.second ? "(" + std::move(snd.first) + ")" : std::move(snd.first)), {snd.second.first && not snd.second.second, 1}};
+            auto [lss, lbl, lbr] = std::get<Token::App>(var)->first.translate();
+            auto [rss, rbl, rbr] = std::get<Token::App>(var)->second.translate();
+            return {(lbl ? "(" + std::move(lss) + ")" : std::move(lss)) + " " + (rbr ? "(" + std::move(rss) + ")" : std::move(rss)), rbl && not rbr, 1};
         } break;
         case Token::Arg:
             return std::get<Token::Arg>(var)->first.translate();
+        default:
+            assert(false); // unreachable
         }
     }
+    // std::tuple<std::string, bool> translate() const {
+    //     switch (var.index()) {
+    //     case Token::Fun:
+    //         return {std::get<0>(std::get<Token::Fun>(var)->second.translate()) + " |" + std::get<Token::Fun>(var)->first, 1};
+    //     case Token::Par:
+    //         return {"$" + std::get<Token::Par>(var), 0};
+    //     case Token::Def:
+    //         return {"&" + std::get<Token::Def>(var), 0};
+    //     case Token::Set:
+    //         return {"!" + std::get<Token::Set>(var), 0};
+    //     case Token::Int:
+    //         return {std::get<Token::Int>(var).to_string(), 0};
+    //     case Token::Opr:
+    //         return {std::string{std::get<Token::Opr>(var).first}, 0};
+    //     case Token::Cmp:
+    //         return {std::string{std::get<Token::Cmp>(var).first}, 0};
+    //     case Token::OprInt:
+    //         return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), 1};
+    //     case Token::CmpInt:
+    //         return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), 1};
+    //     case Token::App: {
+    //         auto [lss, lbb] = std::get<Token::App>(var)->first.translate();
+    //         auto [rss, rbb] = std::get<Token::App>(var)->second.translate();
+    //         return {std::move(lss) + " " + (rbb ? "(" + std::move(rss) + ")" : std::move(rss)), 1};
+    //     } break;
+    //     case Token::Arg:
+    //         return std::get<Token::Arg>(var)->first.translate();
+    //     default:
+    //         assert(false); // unreachable
+    //     }
+    // }
 };
 int main(int argc, char *argv[]) {
     stack_top = &argc;
@@ -304,7 +337,7 @@ int main(int argc, char *argv[]) {
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
     for (bool end = false; not end;) {
         std::cerr << ps_in;
-        Slice line = Slice::getline(std::cin);
+        Slice exp = Slice::getline(std::cin);
         if (std::cin.eof()) {
             end = true;
             if (check_stderr && check_stdin) {
@@ -312,29 +345,28 @@ int main(int argc, char *argv[]) {
             }
         }
         try {
-            auto [cmd, exp] = read(line);
-            if (cmd.empty() || cmd.size() == 1 && cmd == "#") {
+            if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
             } else if (cmd[0] == '&') {
-                Tree::put<DEF>(exp, cmd(1, 0));
+                Tree::put<DEF>(std::move(exp), cmd(1, 0));
             } else if (cmd[0] == '!') {
-                Tree::put<SET>(exp, cmd(1, 0));
+                Tree::put<SET>(std::move(exp), cmd(1, 0));
             } else if (cmd.size() == 3 && cmd == "fmt") {
-                auto &res = Tree::put<DEF>(exp, "");
+                auto &res = Tree::put<DEF>(std::move(exp), "");
                 std::cerr << ps_out;
-                std::cout << res.translate().first << std::endl;
+                std::cout << std::get<0>(res.translate()) << std::endl;
             } else if (cmd.size() == 3 && cmd == "cal") {
-                auto &res = Tree::put<SET>(exp, "");
+                auto &res = Tree::put<SET>(std::move(exp), "");
                 std::cerr << ps_out;
-                std::cout << res.translate().first << std::endl;
+                std::cout << std::get<0>(res.translate()) << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto const &[key, val] : Tree::dir<DEF>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate().first << std::endl;
+                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
                 }
                 for (auto const &[key, val] : Tree::dir<SET>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate().first << std::endl;
+                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr<DEF>();
