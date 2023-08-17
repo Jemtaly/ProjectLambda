@@ -91,7 +91,7 @@ class Tree {
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
         std::string, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string, std::string>;
+        std::string>;
     Var var;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
