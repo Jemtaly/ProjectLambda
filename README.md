@@ -2,17 +2,14 @@
 
 ProjectLambda is a calculator / programming language based on lambda calculus.
 
-## Compiling and Running
+## Compiling
 
 ```
 git clone https://github.com/Jemtaly/ProjectLambda
 cd ProjectLambda
-g++ lambda_full.cpp -std=c++17 -O3 -o lambda_full.exe # full version
-g++ lambda_lite.cpp -std=c++17 -O3 -o lambda_lite.exe # version that removes support for the `!VAR` and `fmt` commands
-./lambda.exe
+./build.sh lambda_full.cpp # full version
+./build.sh lambda_lite.cpp # version that removes support for the `!VAR` and `fmt` commands
 ```
-
-*Add `-DUSE_GMP` and `-lgmp` options at compile time if you want to use the GNU MP bignum library for large integer operations.*
 
 ## Commands
 
