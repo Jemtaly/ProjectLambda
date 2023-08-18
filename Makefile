@@ -6,9 +6,6 @@ VERSION = $(shell git describe --tags --always --dirty="-dev" 2>/dev/null || ech
 MACHINE = $(shell $(CXX) -dumpmachine)
 STACK_SIZE = 4294967296
 CXXFLAGS = -std=c++20 -O3 -DSTACK_SIZE=$(STACK_SIZE)
-ifeq ($(SOURCE), main.cpp)
-    $(error No source file specified)
-endif
 ifeq ($(findstring linux,$(MACHINE)), linux)
     EXE_EXT = 
     LDFLAGS = -Wl,-z,stack-size=$(STACK_SIZE)

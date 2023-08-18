@@ -18,13 +18,13 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #endif
-#ifndef STACK_MAX
-#define STACK_MAX 8388608 // 8 MiB
+#ifndef STACK_SIZE
+#define STACK_SIZE 8388608 // 8 MiB
 #endif
 int *stack_top;
 bool stack_err() {
     int dummy;
-    return (char *)stack_top - (char *)&dummy >= STACK_MAX / 2;
+    return (char *)stack_top - (char *)&dummy >= STACK_SIZE / 2;
 }
 auto read(Slice &exp) {
     auto i = exp.get_beg();
@@ -110,15 +110,26 @@ class Tree {
             return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         }
     }
-    static Tree parse(Slice &&exp, Tree &&fst = std::monostate()) {
+    // static Tree parse(Slice &&exp, Tree &&fst = std::monostate()) {
+    //     if (auto sym = read(exp); sym.empty()) {
+    //         return first(std::move(fst));
+    //     } else if (sym[0] == '\\') {
+    //         return build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))));
+    //     } else if (sym[0] == '|') {
+    //         return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst))));
+    //     } else {
+    //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
+    //     }
+    // }
+    static Tree parse(Slice &&exp, Tree &&fun = std::monostate(), Tree &&fst = std::monostate()) {
         if (auto sym = read(exp); sym.empty()) {
-            return first(std::move(fst));
+            return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
-            return build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))));
+            return build(std::move(fun), build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
         } else if (sym[0] == '|') {
-            return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst))));
+            return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst)))));
         } else {
-            return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
+            return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
     }
     static Tree lex(Slice const &sym) {
@@ -265,7 +276,7 @@ int main(int argc, char *argv[]) {
     check_stderr = isatty(fileno(stderr));
     struct rlimit rlim;
     getrlimit(RLIMIT_STACK, &rlim);
-    rlim.rlim_cur = STACK_MAX;
+    rlim.rlim_cur = STACK_SIZE;
     setrlimit(RLIMIT_STACK, &rlim);
 #endif
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
