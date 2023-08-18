@@ -16,9 +16,10 @@
 #include <Windows.h>
 #elif defined __unix__
 #include <unistd.h>
+#include <sys/resource.h>
 #endif
 #ifndef STACK_MAX
-#define STACK_MAX 4294967296 // 4 GiB
+#define STACK_MAX 8388608 // 8 MiB
 #endif
 int *stack_top;
 bool stack_err() {
@@ -247,35 +248,6 @@ public:
             assert(false); // unreachable
         }
     }
-    // std::tuple<std::string, bool> translate() const {
-    //     switch (var.index()) {
-    //     case Token::Fun:
-    //         return {std::get<0>(std::get<Token::Fun>(var)->second.translate()) + " |" + std::get<Token::Fun>(var)->first, 1};
-    //     case Token::Par:
-    //         return {"$" + std::get<Token::Par>(var), 0};
-    //     case Token::Def:
-    //         return {"&" + std::get<Token::Def>(var), 0};
-    //     case Token::Int:
-    //         return {std::get<Token::Int>(var).to_string(), 0};
-    //     case Token::Opr:
-    //         return {std::string{std::get<Token::Opr>(var).first}, 0};
-    //     case Token::Cmp:
-    //         return {std::string{std::get<Token::Cmp>(var).first}, 0};
-    //     case Token::OprInt:
-    //         return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), 1};
-    //     case Token::CmpInt:
-    //         return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), 1};
-    //     case Token::App: {
-    //         auto [lss, lbb] = std::get<Token::App>(var)->first.translate();
-    //         auto [rss, rbb] = std::get<Token::App>(var)->second.translate();
-    //         return {std::move(lss) + " " + (rbb ? "(" + std::move(rss) + ")" : std::move(rss)), 1};
-    //     } break;
-    //     case Token::Arg:
-    //         return std::get<Token::Arg>(var)->first.translate();
-    //     default:
-    //         assert(false); // unreachable
-    //     }
-    // }
 };
 int main(int argc, char *argv[]) {
     stack_top = &argc;
@@ -291,6 +263,10 @@ int main(int argc, char *argv[]) {
     check_stdin = isatty(fileno(stdin));
     check_stdout = isatty(fileno(stdout));
     check_stderr = isatty(fileno(stderr));
+    struct rlimit rlim;
+    getrlimit(RLIMIT_STACK, &rlim);
+    rlim.rlim_cur = STACK_MAX;
+    setrlimit(RLIMIT_STACK, &rlim);
 #endif
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
