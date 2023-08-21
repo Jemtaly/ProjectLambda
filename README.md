@@ -7,8 +7,10 @@ ProjectLambda is a calculator / programming language based on lambda calculus.
 ```
 git clone https://github.com/Jemtaly/ProjectLambda
 cd ProjectLambda
-./build.sh lambda_full.cpp # full version
-./build.sh lambda_lite.cpp # version that removes support for the `!VAR` and `fmt` commands
+make SOURCE=lambda_full.cpp           # full version
+make SOURCE=lambda_full.cpp USE_GMP=1 # full version using GNU MP Bignum Library
+make SOURCE=lambda_lite.cpp           # lite version (removes support for the `!VAR` and `fmt` commands)
+make SOURCE=lambda_lite.cpp USE_GMP=1 # lite version using GNU MP Bignum Library
 ```
 
 ## Commands
