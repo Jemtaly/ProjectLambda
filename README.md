@@ -28,8 +28,8 @@ cd ProjectLambda
 | symbol | meaning |
 | --- | --- |
 | `(...)` | Applications are assumed to be left associative: `M N P` and `((M N) P)` are equivalent. |
-| `\ARG EXPR` | Lambda expression, `ARG` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `\x \y $y $x` => $\lambda x.\lambda y.y\ x$ |
-| `EXPR \|ARG` | An alternative representation of a lambda expression. Such expressions are left-conjugated and have lower precedence than right-conjugated lambda expressions. Example: `\x $x $y $z \|y \|z 1 2` => `\x (\z \y $x $y $z) 1 2` => $\lambda x.(\lambda z.\lambda y.x\ y\ z)\ 1\ 2$ |
+| `\PAR EXPR` | Lambda expression, `PAR` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `\x \y $y $x` => $\lambda x.\lambda y.y\ x$ |
+| `EXPR \|PAR1 ARG1 \|PAR2 ARG2 ... ` | This is a syntactic sugar for lambda expressions whose arguments are already determined. If you know haskell, think of it as something like `where` in that. <br/>`\|PAR` has lower priority than apply, but higher than `\PAR`. Example: `\y $x $y $z \|z + 1 2 \|x \a \b $t $a $b \|t +` => `\y ($x $y $z \|z (+ 1 2) \|x (\a \b ($t $a $b \|t +)))`. |
 | `$ARG` | Formal parameter, used in lambda expressions. |
 | `&VAR` | Call the function/variable defined by `def` instruction. |
 | `!VAR` | Call the function/variable defined by `set` instruction. |
@@ -110,6 +110,12 @@ cal !fact 99
 # output: 933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000
 ```
 
-### Left-conjugated lambda expressions
+### `|PAR`
 
-A left-conjugated lambda expression acts similarly to the `where` syntax in haskell. For example, `* (f x y z) (f x y z)` can be abbreviated to `* t t |t (f x y z)`, thus avoiding double counting of `f x y z`.
+This is a syntactic sugar for lambda expressions whose arguments are already determined. If you know haskell, think of it as something like `where` in that.
+
+Examples:
+
+- `(* (f x y z) (f x y z))` => `* $t $t |t f x y z`
+- `(* (f x y z) (g x y z))` => `* $s $t |s f x y z |t g x y z`
+- `(* (f (x y)) (g (x y)))` => `* $s $t |s f $u |t g $u |u x y`
