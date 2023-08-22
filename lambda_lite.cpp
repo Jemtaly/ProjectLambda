@@ -219,7 +219,7 @@ public:
     static Tree cal(Slice &&exp) {
         auto res = parse(std::move(exp));
         res.calculate();
-        return std::move(res);
+        return res; // NRVO
     }
     static void def(Slice &&exp, std::string const &key) {
         dct.insert_or_assign(key, parse(std::move(exp)));
@@ -262,9 +262,9 @@ public:
 };
 int main(int argc, char *argv[]) {
     stack_top = &argc;
-    bool check_stdin = true;
-    bool check_stdout = true;
-    bool check_stderr = true;
+    bool check_stdin = false;
+    bool check_stdout = false;
+    bool check_stderr = false;
 #if defined _WIN32
     DWORD dwModeTemp;
     check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
