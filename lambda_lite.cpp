@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
             } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto const &[key, val] : Tree::dir()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(9) << (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
+                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr();
