@@ -111,7 +111,7 @@ class Tree {
         }
     }
     // static Tree parse(Slice &&exp, Tree &&fst = std::monostate()) {
-    //     if (auto sym = read(exp); sym.empty()) {
+    //     if (auto sym = read(exp); sym.empty() || sym.size() == 1 && sym == "#") {
     //         return first(std::move(fst));
     //     } else if (sym[0] == '\\') {
     //         return build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))));
@@ -122,7 +122,7 @@ class Tree {
     //     }
     // }
     static Tree parse(Slice &&exp, Tree &&fun = std::monostate(), Tree &&fst = std::monostate()) {
-        if (auto sym = read(exp); sym.empty()) {
+        if (auto sym = read(exp); sym.empty() || sym.size() == 1 && sym == "#") {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
             return build(std::move(fun), build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
