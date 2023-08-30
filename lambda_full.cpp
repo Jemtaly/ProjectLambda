@@ -23,6 +23,9 @@
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
 #endif
+std::string ps_in;
+std::string ps_res;
+std::string ps_out;
 int *stack_top;
 bool stack_err() {
     int dummy;
@@ -316,8 +319,9 @@ int main(int argc, char *argv[]) {
     rlim.rlim_cur = STACK_SIZE;
     setrlimit(RLIMIT_STACK, &rlim);
 #endif
-    std::string ps_in = check_stderr && check_stdin ? ">> " : "";
-    std::string ps_out = check_stderr && check_stdout ? "=> " : "";
+    ps_in = check_stderr && check_stdin ? ">> " : "";
+    ps_out = check_stderr && check_stdout ? "=> " : "";
+    ps_res = check_stderr && check_stdout ? "== " : "";
     for (bool end = false; not end;) {
         std::cerr << ps_in;
         Slice exp = Slice::getline(std::cin);
@@ -336,11 +340,11 @@ int main(int argc, char *argv[]) {
                 Tree::put<SET>(std::move(exp), cmd(1, 0));
             } else if (cmd.size() == 3 && cmd == "fmt") {
                 auto &res = Tree::put<DEF>(std::move(exp), "");
-                std::cerr << ps_out;
+                std::cerr << ps_res;
                 std::cout << std::get<0>(res.translate()) << std::endl;
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto &res = Tree::put<SET>(std::move(exp), "");
-                std::cerr << ps_out;
+                std::cerr << ps_res;
                 std::cout << std::get<0>(res.translate()) << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto const &[key, val] : Tree::dir<DEF>()) {
