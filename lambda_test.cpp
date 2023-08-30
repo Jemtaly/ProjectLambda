@@ -120,9 +120,9 @@ class Tree {
     //         return build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
     //     } else if (sym[0] == '|') {
     //         return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
-    //     } else if (sym[0] == '\'') {
+    //     } else if (sym[0] == '^') {
     //         return build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
-    //     } else if (sym[0] == '!') {
+    //     } else if (sym[0] == '@') {
     //         return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
     //     } else {
     //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
@@ -135,9 +135,9 @@ class Tree {
             return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
         } else if (sym[0] == '|') {
             return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
-        } else if (sym[0] == '\'') {
+        } else if (sym[0] == '^') {
             return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
-        } else if (sym[0] == '!') {
+        } else if (sym[0] == '@') {
             return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
@@ -259,7 +259,7 @@ public:
         case Token::Fun:
             return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<0>(std::get<Token::Fun>(var)->second.translate()), 1, 0};
         case Token::Out:
-            return {"\'" + std::get<Token::Out>(var)->first + " " + std::get<0>(std::get<Token::Out>(var)->second.translate()), 1, 0};
+            return {"^" + std::get<Token::Out>(var)->first + " " + std::get<0>(std::get<Token::Out>(var)->second.translate()), 1, 0};
         case Token::Par:
             return {"$" + std::get<Token::Par>(var), 0, 0};
         case Token::Def:
