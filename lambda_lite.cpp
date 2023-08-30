@@ -162,7 +162,7 @@ class Tree {
             auto &snd = std::get<Token::App>(var)->second;
             if (fst.calculate(), fst.var.index() == Token::Fun) {
                 auto tmp = std::move(std::get<Token::Fun>(fst.var)->second);
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), false), std::move(std::get<Token::Fun>(fst.var)->first));
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(std::get<Token::Fun>(fst.var)->first));
                 tmp.calculate();
                 *this = std::move(tmp);
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
