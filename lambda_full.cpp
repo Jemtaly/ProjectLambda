@@ -87,7 +87,7 @@ class Tree {
         Ini, Int,
         Opr, OprInt,
         Cmp, CmpInt,
-        App, Fun,
+        App, Fun, Out,
         Par, Arg,
         Def, Set,
     };
@@ -95,7 +95,7 @@ class Tree {
         std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>,
+        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
         std::string, std::shared_ptr<std::pair<Tree, bool>>,
         std::string, std::string>;
     Var var;
@@ -119,9 +119,13 @@ class Tree {
     //     if (auto sym = read(exp); sym.empty()) {
     //         return first(std::move(fst));
     //     } else if (sym[0] == '\\') {
-    //         return build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))));
+    //         return build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
     //     } else if (sym[0] == '|') {
-    //         return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst))));
+    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
+    //     } else if (sym[0] == '^') {
+    //         return build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
+    //     } else if (sym[0] == '@') {
+    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
     //     } else {
     //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
     //     }
@@ -130,9 +134,13 @@ class Tree {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
-            return build(std::move(fun), build(std::move(fst), Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
         } else if (sym[0] == '|') {
-            return parse(std::move(exp), Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst)))));
+            return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+        } else if (sym[0] == '^') {
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
+        } else if (sym[0] == '@') {
+            return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
@@ -169,6 +177,14 @@ class Tree {
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(std::get<Token::Fun>(fst.var)->first));
                 tmp.calculate();
                 *this = std::move(tmp);
+            } else if (fst.var.index() == Token::Out) {
+                auto tmp = std::move(std::get<Token::Out>(fst.var)->second);
+                snd.calculate();
+                std::cerr << ps_out;
+                std::cout << std::get<0>(snd.translate()) << std::endl;
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(std::get<Token::Out>(fst.var)->first));
+                tmp.calculate();
+                *this = std::move(tmp);
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
                 (std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%' || std::get<Token::Int>(snd.var))) {
                 var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
@@ -178,8 +194,8 @@ class Tree {
                 var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
             } else if (fst.var.index() == Token::CmpInt && (snd.calculate(), snd.var.index() == Token::Int)) {
                 var = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second))
-                    ? Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))
-                    : Node<std::pair<std::string, Tree>>::make("T", Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")));
+                    ? Var(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))))
+                    : Var(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
             } else {
                 throw std::runtime_error("invalid application: " + std::get<0>(fst.translate()) + " on " + std::get<0>(snd.translate()));
             }
@@ -207,7 +223,7 @@ class Tree {
             }
             throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
         case Token::Par:
-            throw std::runtime_error("unbound parameter: $" + std::get<Token::Par>(var));
+            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
         }
     }
     void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &par) {
@@ -221,6 +237,11 @@ class Tree {
                 std::get<Token::Fun>(var)->second.substitute(arg, par);
             }
             break;
+        case Token::Out:
+            if (std::get<Token::Out>(var)->first != par) {
+                std::get<Token::Out>(var)->second.substitute(arg, par);
+            }
+            break;
         case Token::Par:
             if (std::get<Token::Par>(var) == par) {
                 var = arg;
@@ -231,13 +252,17 @@ class Tree {
     Tree deepcopy(std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> &map) const {
         switch (var.index()) {
         case Token::App:
-            return Node<std::pair<Tree, Tree>>::make(
+            return Tree(std::in_place_index<Token::App>, Node<std::pair<Tree, Tree>>::make(
                 std::get<Token::App>(var)->first.deepcopy(map),
-                std::get<Token::App>(var)->second.deepcopy(map));
+                std::get<Token::App>(var)->second.deepcopy(map)));
         case Token::Fun:
-            return Node<std::pair<std::string, Tree>>::make(
+            return Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(
                 std::get<Token::Fun>(var)->first,
-                std::get<Token::Fun>(var)->second.deepcopy(map));
+                std::get<Token::Fun>(var)->second.deepcopy(map)));
+        case Token::Out:
+            return Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(
+                std::get<Token::Out>(var)->first,
+                std::get<Token::Out>(var)->second.deepcopy(map)));
         case Token::Arg:
             if (auto const &it = map.find(std::get<Token::Arg>(var)); it != map.end()) {
                 return it->second;
@@ -272,6 +297,8 @@ public:
         switch (var.index()) {
         case Token::Fun:
             return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<0>(std::get<Token::Fun>(var)->second.translate()), 1, 0};
+        case Token::Out:
+            return {"^" + std::get<Token::Out>(var)->first + " " + std::get<0>(std::get<Token::Out>(var)->second.translate()), 1, 0};
         case Token::Par:
             return {"$" + std::get<Token::Par>(var), 0, 0};
         case Token::Def:
