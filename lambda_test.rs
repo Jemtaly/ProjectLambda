@@ -1,14 +1,36 @@
 #![feature(box_patterns)]
-use num_bigint::BigInt;
-use num_traits::Zero;
+use std::arch::asm;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io;
 use std::mem;
 use std::rc::Rc;
-static PS_IN: &str = ">> ";
-static PS_OUT: &str = "=> ";
-static PS_RES: &str = "== ";
+extern crate atty;
+extern crate lazy_static;
+extern crate num_bigint;
+extern crate num_traits;
+use atty::Stream;
+use lazy_static::lazy_static;
+use num_bigint::BigInt;
+use num_traits::Zero;
+lazy_static! {
+    static ref PS_IN: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdin) { ">> " } else { "" };
+    static ref PS_OUT: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdout) { "<< " } else { "" };
+    static ref PS_RES: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdout) { "== " } else { "" };
+    static ref ADD_LN: bool = if atty::is(Stream::Stderr) && atty::is(Stream::Stdin) { true } else { false };
+    static ref STACK_MAX: usize = 0o4000_0000;
+    static ref STACK_TOP: usize = stack_ptr();
+}
+fn stack_ptr() -> usize {
+    let mut ptr: usize = 0;
+    unsafe {
+        asm!("mov {}, rsp", out(reg) ptr);
+    }
+    ptr
+}
+fn stack_err() -> bool {
+    *STACK_TOP - *STACK_MAX / 2 > stack_ptr()
+}
 fn read(exp: &str) -> Result<(&str, &str), String> {
     let i = exp.as_bytes().iter().position(|&c| c != b' ').unwrap_or(exp.len());
     let mut ctr: usize = 0;
@@ -107,6 +129,9 @@ impl Tree {
         }
     }
     fn calculate(self, dct: &HashMap<String, Tree>) -> Result<Self, String> {
+        if stack_err() {
+            return Err("recursion limit exceeded".to_string());
+        }
         match self {
             Tree::Node(box fst, box snd) => match fst.calculate(dct)? {
                 Tree::Fun(sym, box tmp) => {
@@ -114,7 +139,7 @@ impl Tree {
                 }
                 Tree::Out(sym, box tmp) => {
                     let snd = snd.calculate(dct)?;
-                    eprint!("{}", PS_OUT);
+                    eprint!("{}", *PS_OUT);
                     println!("{}", snd.translate().0);
                     tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym)?.calculate(dct)
                 }
@@ -207,7 +232,7 @@ fn process(input: String, dct: &mut HashMap<String, Tree>) -> Result<(), String>
         Ok(())
     } else if cmd == "cal" {
         let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(dct)?;
-        eprint!("{}", PS_RES);
+        eprint!("{}", *PS_RES);
         println!("{}", res.translate().0);
         Ok(())
     } else if cmd.starts_with('&') {
@@ -216,7 +241,7 @@ fn process(input: String, dct: &mut HashMap<String, Tree>) -> Result<(), String>
         Ok(())
     } else if cmd == "dir" {
         for (key, val) in dct.iter() {
-            eprint!("{}", PS_OUT);
+            eprint!("{}", *PS_OUT);
             println!("&{:<8} {}", if key.len() <= 8 { key.clone() } else { format!("{}..", &key[..6]) }, val.translate().0);
         }
         Ok(())
@@ -231,7 +256,7 @@ fn main() {
     let mut dct = HashMap::new();
     let mut nxt = true;
     while nxt {
-        eprint!("{}", PS_IN);
+        eprint!("{}", *PS_IN);
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
         if input.ends_with('\r') {
@@ -239,10 +264,12 @@ fn main() {
         }
         if input.ends_with('\n') {
             input.pop();
-        } else {
+        } else if *ADD_LN {
             eprintln!();
             nxt = false;
-        };
+        } else {
+            nxt = false;
+        }
         if input.ends_with('\r') {
             input.pop();
         }
