@@ -71,7 +71,7 @@ enum Tree {
     Cmp(Cmpt, String),
     OprInt(Oprt, String, BigInt),
     CmpInt(Cmpt, String, BigInt),
-    Node(Box<Tree>, Box<Tree>),
+    App(Box<Tree>, Box<Tree>),
     Fun(String, Box<Tree>),
     Out(String, Box<Tree>),
     Arg(Rc<RefCell<(Tree, bool)>>),
@@ -88,7 +88,7 @@ impl Tree {
     fn build(fst: Tree, snd: Tree) -> Result<Tree, String> {
         match fst {
             Tree::Empty => Ok(snd),
-            _ => Ok(Tree::Node(Box::new(fst), Box::new(snd))),
+            _ => Ok(Tree::App(Box::new(fst), Box::new(snd))),
         }
     }
     fn parse(exp: &str, fun: Tree, fst: Tree) -> Result<Tree, String> {
@@ -133,15 +133,17 @@ impl Tree {
             return Err("recursion limit exceeded".to_string());
         }
         match self {
-            Tree::Node(box fst, box snd) => match fst.calculate(dct)? {
-                Tree::Fun(sym, box tmp) => {
-                    tmp.substitute(&Rc::new(RefCell::new((snd, false))), &sym)?.calculate(dct)
+            Tree::App(box fst, box snd) => match fst.calculate(dct)? {
+                Tree::Fun(sym, box mut tmp) => {
+                    tmp.substitute(&Rc::new(RefCell::new((snd, false))), &sym);
+                    tmp.calculate(dct)
                 }
-                Tree::Out(sym, box tmp) => {
+                Tree::Out(sym, box mut tmp) => {
                     let snd = snd.calculate(dct)?;
                     eprint!("{}", *PS_OUT);
                     println!("{}", snd.translate().0);
-                    tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym)?.calculate(dct)
+                    tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym);
+                    tmp.calculate(dct)
                 }
                 Tree::Opr(opr, name) => match snd.calculate(dct)? {
                     Tree::Int(int) if !int.is_zero() || (name != ":/" && name != ":%") => Ok(Tree::OprInt(opr, name, int)),
@@ -186,23 +188,22 @@ impl Tree {
             _ => Ok(self),
         }
     }
-    fn substitute(self, arg: &Rc<RefCell<(Tree, bool)>>, par: &String) -> Result<Self, String> {
+    fn substitute(&mut self, arg: &Rc<RefCell<(Tree, bool)>>, par: &String) {
         match self {
-            Tree::Node(box fst, box snd) => {
-                let fst = fst.substitute(arg, par)?;
-                let snd = snd.substitute(arg, par)?;
-                Ok(Tree::Node(Box::new(fst), Box::new(snd)))
+            Tree::App(box fst, box snd) => {
+                fst.substitute(arg, par);
+                snd.substitute(arg, par);
             }
-            Tree::Fun(sym, box tmp) if &sym != par => {
-                let tmp = tmp.substitute(arg, par)?;
-                Ok(Tree::Fun(sym, Box::new(tmp)))
+            Tree::Fun(sym, box tmp) if sym != par => {
+                tmp.substitute(arg, par);
             }
-            Tree::Out(sym, box tmp) if &sym != par => {
-                let tmp = tmp.substitute(arg, par)?;
-                Ok(Tree::Out(sym, Box::new(tmp)))
+            Tree::Out(sym, box tmp) if sym != par => {
+                tmp.substitute(arg, par);
             }
-            Tree::Par(sym) if &sym == par => Ok(Tree::Arg(arg.clone())),
-            _ => Ok(self),
+            Tree::Par(sym) if sym == par => {
+                *self = Tree::Arg(arg.clone());
+            }
+            _ => {}
         }
     }
     fn translate(&self) -> (String, bool, bool) {
@@ -216,7 +217,7 @@ impl Tree {
             Tree::Cmp(_, name) => (name.clone(), false, false),
             Tree::OprInt(_, name, int) => (format!("{} {}", name, int), false, true),
             Tree::CmpInt(_, name, int) => (format!("{} {}", name, int), false, true),
-            Tree::Node(box fst, box snd) => {
+            Tree::App(box fst, box snd) => {
                 let (lft, l, _) = fst.translate();
                 let (rgt, m, r) = snd.translate();
                 (format!("{} {}", if l { format!("({})", lft) } else { lft }, if r { format!("({})", rgt) } else { rgt }), m && !r, true)
@@ -230,14 +231,14 @@ fn process(input: String, dct: &mut HashMap<String, Tree>) -> Result<(), String>
     let (cmd, exp) = read(&input)?;
     if cmd.is_empty() || cmd == "#" {
         Ok(())
+    } else if cmd.starts_with('&') {
+        let def = Tree::parse(exp, Tree::Empty, Tree::Empty)?;
+        dct.insert(cmd[1..].to_string(), def);
+        Ok(())
     } else if cmd == "cal" {
         let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(dct)?;
         eprint!("{}", *PS_RES);
         println!("{}", res.translate().0);
-        Ok(())
-    } else if cmd.starts_with('&') {
-        let def = Tree::parse(exp, Tree::Empty, Tree::Empty)?;
-        dct.insert(cmd[1..].to_string(), def);
         Ok(())
     } else if cmd == "dir" {
         for (key, val) in dct.iter() {
