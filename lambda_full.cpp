@@ -192,9 +192,9 @@ class Tree {
             } else if (fst.var.index() == Token::OprInt && (snd.calculate(), snd.var.index() == Token::Int)) {
                 var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
             } else if (fst.var.index() == Token::CmpInt && (snd.calculate(), snd.var.index() == Token::Int)) {
-                *this = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T",
-                        Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F",
-                        Tree(std::in_place_index<Token::Par>, std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second)) ? "T" : "F")))));
+                static const auto T = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))));
+                static const auto F = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
+                *this = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second)) ? T : F;
             } else {
                 throw std::runtime_error("invalid application: " + std::get<0>(fst.translate()) + " on " + std::get<0>(snd.translate()));
             }
@@ -208,7 +208,7 @@ class Tree {
             if (arg.use_count() == 1) {
                 *this = Tree(std::move(arg->first));
             } else {
-                *this = arg->first;
+                *this = std::move(arg)->first;
             }
         } break;
         case Token::Def:
@@ -246,7 +246,7 @@ class Tree {
             break;
         case Token::Par:
             if (std::get<Token::Par>(var) == par) {
-                var = arg;
+                var.emplace<Token::Arg>(arg);
             }
             break;
         }
