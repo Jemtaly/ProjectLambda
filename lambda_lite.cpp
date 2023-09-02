@@ -166,21 +166,20 @@ class Tree {
         }
         switch (var.index()) {
         case Token::App: {
-            auto &fst = std::get<Token::App>(var)->first;
-            auto &snd = std::get<Token::App>(var)->second;
+            auto &[fst, snd] = *std::get<Token::App>(var);
             if (fst.calculate(), fst.var.index() == Token::Fun) {
-                auto tmp = std::move(std::get<Token::Fun>(fst.var)->second);
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(std::get<Token::Fun>(fst.var)->first));
-                tmp.calculate();
-                *this = std::move(tmp);
+                auto &[par, tmp] = *std::get<Token::Fun>(fst.var);
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
+                *this = Tree(std::move(tmp));
+                return calculate();
             } else if (fst.var.index() == Token::Out) {
-                auto tmp = std::move(std::get<Token::Out>(fst.var)->second);
                 snd.calculate();
                 std::cerr << ps_out;
                 std::cout << std::get<0>(snd.translate()) << std::endl;
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(std::get<Token::Out>(fst.var)->first));
-                tmp.calculate();
-                *this = std::move(tmp);
+                auto &[par, tmp] = *std::get<Token::Out>(fst.var);
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
+                *this = Tree(std::move(tmp));
+                return calculate();
             } else if (fst.var.index() == Token::Opr && (snd.calculate(), snd.var.index() == Token::Int) &&
                 (std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%' || std::get<Token::Int>(snd.var))) {
                 var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
@@ -189,26 +188,29 @@ class Tree {
             } else if (fst.var.index() == Token::OprInt && (snd.calculate(), snd.var.index() == Token::Int)) {
                 var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
             } else if (fst.var.index() == Token::CmpInt && (snd.calculate(), snd.var.index() == Token::Int)) {
-                var = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second))
-                    ? Var(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))))
-                    : Var(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
+                *this = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T",
+                        Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F",
+                        Tree(std::in_place_index<Token::Par>, std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second)) ? "T" : "F")))));
             } else {
                 throw std::runtime_error("invalid application: " + std::get<0>(fst.translate()) + " on " + std::get<0>(snd.translate()));
             }
         } break;
         case Token::Arg: {
-            auto arg = std::move(std::get<Token::Arg>(var));
+            auto &arg = std::get<Token::Arg>(var);
             if (not arg->second) {
                 arg->first.calculate();
                 arg->second = true;
             }
-            *this = arg.use_count() == 1 ? std::move(arg->first) : arg->first;
+            if (arg.use_count() == 1) {
+                *this = Tree(std::move(arg->first));
+            } else {
+                *this = arg->first;
+            }
         } break;
         case Token::Def:
             if (auto const &it = dct.find(std::get<Token::Def>(var)); it != dct.end()) {
                 *this = it->second;
-                calculate();
-                break;
+                return calculate();
             }
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
         case Token::Par:
