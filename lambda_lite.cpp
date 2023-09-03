@@ -84,16 +84,16 @@ class Tree {
         Opr, OprInt,
         Cmp, CmpInt,
         Fun, Out,
-        Par, Arg,
-        Def, App,
+        App, Arg,
+        Par, Def,
     };
     using Var = std::variant<
         std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
-        std::string, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string, Node<std::pair<Tree, Tree>>>;
+        Node<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
+        std::string, std::string>;
     Var var;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
@@ -225,22 +225,18 @@ class Tree {
                 *this = arg->first;
             }
         } break;
+        case Token::Par:
+            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
         case Token::Def:
             if (auto const &it = dct.find(std::get<Token::Def>(var)); it != dct.end()) {
                 *this = it->second;
                 return calc();
             }
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
-        case Token::Par:
-            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
         }
     }
     void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &par) {
         switch (var.index()) {
-        case Token::App:
-            std::get<Token::App>(var)->first.substitute(arg, par);
-            std::get<Token::App>(var)->second.substitute(arg, par);
-            return;
         case Token::Fun:
             if (std::get<Token::Fun>(var)->first != par) {
                 std::get<Token::Fun>(var)->second.substitute(arg, par);
@@ -250,6 +246,10 @@ class Tree {
             if (std::get<Token::Out>(var)->first != par) {
                 std::get<Token::Out>(var)->second.substitute(arg, par);
             }
+            return;
+        case Token::App:
+            std::get<Token::App>(var)->first.substitute(arg, par);
+            std::get<Token::App>(var)->second.substitute(arg, par);
             return;
         case Token::Par:
             if (std::get<Token::Par>(var) == par) {
