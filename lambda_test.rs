@@ -71,9 +71,9 @@ enum Tree {
     Cmp(Cmpt, String),
     OprInt(Oprt, String, BigInt),
     CmpInt(Cmpt, String, BigInt),
-    App(Box<Tree>, Box<Tree>),
     Fun(String, Box<Tree>),
     Out(String, Box<Tree>),
+    App(Box<Tree>, Box<Tree>),
     Arg(Rc<RefCell<(Tree, bool)>>),
     Par(String),
     Def(String),
@@ -171,13 +171,6 @@ impl Tree {
                 }
                 Ok(if Rc::strong_count(&arg) == 1 { mem::replace(shr, Tree::Empty) } else { shr.clone() })
             }
-            Tree::Def(key) => {
-                if let Some(def) = dct.get(&key) {
-                    def.clone().calculate(dct)
-                } else {
-                    Err(format!("undefined symbol: &{}", key))
-                }
-            }
             Tree::Par(key) => {
                 if let Some(def) = dct.get(&key) {
                     def.clone().calculate(dct)
@@ -185,20 +178,27 @@ impl Tree {
                     Err(format!("unbound variable: ${}", key))
                 }
             }
+            Tree::Def(key) => {
+                if let Some(def) = dct.get(&key) {
+                    def.clone().calculate(dct)
+                } else {
+                    Err(format!("undefined symbol: &{}", key))
+                }
+            }
             _ => Ok(self),
         }
     }
     fn substitute(&mut self, arg: &Rc<RefCell<(Tree, bool)>>, par: &String) {
         match self {
-            Tree::App(box fst, box snd) => {
-                fst.substitute(arg, par);
-                snd.substitute(arg, par);
-            }
             Tree::Fun(sym, box tmp) if sym != par => {
                 tmp.substitute(arg, par);
             }
             Tree::Out(sym, box tmp) if sym != par => {
                 tmp.substitute(arg, par);
+            }
+            Tree::App(box fst, box snd) => {
+                fst.substitute(arg, par);
+                snd.substitute(arg, par);
             }
             Tree::Par(sym) if sym == par => {
                 *self = Tree::Arg(arg.clone());

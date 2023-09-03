@@ -85,17 +85,17 @@ class Tree {
         Ini, Int,
         Opr, OprInt,
         Cmp, CmpInt,
-        App, Fun, Out,
-        Par, Arg,
-        Def, Set,
+        Fun, Out,
+        App, Arg,
+        Par, Def, Set,
     };
     using Var = std::variant<
         std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        Node<std::pair<Tree, Tree>>, Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
-        std::string, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string, std::string>;
+        Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
+        Node<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
+        std::string, std::string, std::string>;
     Var var;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
@@ -229,6 +229,14 @@ class Tree {
                 *this = arg->first;
             }
         } break;
+        case Token::Par:
+            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
+        case Token::Def:
+            if (auto const &it = dct<DEF>.find(std::get<Token::Def>(var)); it != dct<DEF>.end()) {
+                *this = it->second;
+                return calc();
+            }
+            throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
         case Token::Set:
             if (auto const &it = dct<SET>.find(std::get<Token::Set>(var)); it != dct<SET>.end()) {
                 std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> map;
@@ -236,22 +244,10 @@ class Tree {
                 return;
             }
             throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
-        case Token::Def:
-            if (auto const &it = dct<DEF>.find(std::get<Token::Def>(var)); it != dct<DEF>.end()) {
-                *this = it->second;
-                return calc();
-            }
-            throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
-        case Token::Par:
-            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
         }
     }
     void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &par) {
         switch (var.index()) {
-        case Token::App:
-            std::get<Token::App>(var)->first.substitute(arg, par);
-            std::get<Token::App>(var)->second.substitute(arg, par);
-            return;
         case Token::Fun:
             if (std::get<Token::Fun>(var)->first != par) {
                 std::get<Token::Fun>(var)->second.substitute(arg, par);
@@ -262,6 +258,10 @@ class Tree {
                 std::get<Token::Out>(var)->second.substitute(arg, par);
             }
             return;
+        case Token::App:
+            std::get<Token::App>(var)->first.substitute(arg, par);
+            std::get<Token::App>(var)->second.substitute(arg, par);
+            return;
         case Token::Par:
             if (std::get<Token::Par>(var) == par) {
                 var.emplace<Token::Arg>(arg);
@@ -271,10 +271,6 @@ class Tree {
     }
     Tree deepcopy(std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> &map) const {
         switch (var.index()) {
-        case Token::App:
-            return Tree(std::in_place_index<Token::App>, Node<std::pair<Tree, Tree>>::make(
-                std::get<Token::App>(var)->first.deepcopy(map),
-                std::get<Token::App>(var)->second.deepcopy(map)));
         case Token::Fun:
             return Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(
                 std::get<Token::Fun>(var)->first,
@@ -283,6 +279,10 @@ class Tree {
             return Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(
                 std::get<Token::Out>(var)->first,
                 std::get<Token::Out>(var)->second.deepcopy(map)));
+        case Token::App:
+            return Tree(std::in_place_index<Token::App>, Node<std::pair<Tree, Tree>>::make(
+                std::get<Token::App>(var)->first.deepcopy(map),
+                std::get<Token::App>(var)->second.deepcopy(map)));
         case Token::Arg:
             if (auto const &it = map.find(std::get<Token::Arg>(var)); it != map.end()) {
                 return it->second;

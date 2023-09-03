@@ -260,7 +260,7 @@ class Tree {
     }
     static inline std::unordered_map<std::string, Tree> dct;
 public:
-    static Tree cal(Slice &&exp) {
+    static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
         res.calc();
         return res;
