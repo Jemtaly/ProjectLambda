@@ -175,7 +175,8 @@ class Tree {
             case Token::Fun: {
                 auto &[par, tmp] = *std::get<Token::Fun>(fst.var);
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
-                return (*this = Tree(std::move(tmp))).calc();
+                *this = Tree(std::move(tmp));
+                return calc();
             }
             case Token::Out: {
                 snd.calc();
@@ -183,7 +184,8 @@ class Tree {
                 std::cout << std::get<0>(snd.translate()) << std::endl;
                 auto &[par, tmp] = *std::get<Token::Out>(fst.var);
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
-                return (*this = Tree(std::move(tmp))).calc();
+                *this = Tree(std::move(tmp));
+                return calc();
             }
             case Token::Opr:
                 if (snd.calc(), snd.var.index() == Token::Int && (std::get<Token::Int>(snd.var)) || std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%') {
@@ -224,7 +226,7 @@ class Tree {
             if (arg.use_count() == 1) {
                 *this = Tree(std::move(arg->first));
             } else {
-                *this = Tree(std::move(arg)->first);
+                *this = arg->first;
             }
         } break;
         case Token::Set:
@@ -236,8 +238,7 @@ class Tree {
             throw std::runtime_error("undefined symbol: !" + std::get<Token::Set>(var));
         case Token::Def:
             if (auto const &it = dct<DEF>.find(std::get<Token::Def>(var)); it != dct<DEF>.end()) {
-                std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> map;
-                *this = it->second.deepcopy(map);
+                *this = it->second;
                 return calc();
             }
             throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
