@@ -147,21 +147,21 @@ impl Tree {
                 }
                 Tree::Opr(opr, name) => match snd.calculate(dct)? {
                     Tree::Int(int) if !int.is_zero() || (name != ":/" && name != ":%") => Ok(Tree::OprInt(opr, name, int)),
-                    snd => Err(format!("invalid application: {} on {}", name, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate().0)),
                 },
                 Tree::Cmp(cmp, name) => match snd.calculate(dct)? {
                     Tree::Int(int) => Ok(Tree::CmpInt(cmp, name, int)),
-                    snd => Err(format!("invalid application: {} on {}", name, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate().0)),
                 },
                 Tree::OprInt(opr, name, int) => match snd.calculate(dct)? {
                     Tree::Int(val) => Ok(Tree::Int(opr(val, int))),
-                    snd => Err(format!("invalid application: {} {} on {}", name, int, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate().0)),
                 },
                 Tree::CmpInt(cmp, name, int) => match snd.calculate(dct)? {
                     Tree::Int(val) => Ok(Tree::Fun("T".to_string(), Box::new(Tree::Fun("F".to_string(), Box::new(Tree::Par(if cmp(val, int) { "T" } else { "F" }.to_string())))))),
-                    snd => Err(format!("invalid application: {} {} on {}", name, int, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate().0)),
                 },
-                fst => Err(format!("invalid application: {} on {}", fst.translate().0, snd.translate().0)),
+                fst => Err(format!("invalid function: {}", fst.translate().0)),
             },
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
