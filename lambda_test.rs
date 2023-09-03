@@ -15,7 +15,7 @@ use num_bigint::BigInt;
 use num_traits::Zero;
 lazy_static! {
     static ref PS_IN: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdin) { ">> " } else { "" };
-    static ref PS_OUT: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdout) { "<< " } else { "" };
+    static ref PS_OUT: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdout) { "=> " } else { "" };
     static ref PS_RES: &'static str = if atty::is(Stream::Stderr) && atty::is(Stream::Stdout) { "== " } else { "" };
     static ref ADD_LN: bool = if atty::is(Stream::Stderr) && atty::is(Stream::Stdin) { true } else { false };
     static ref STACK_MAX: usize = 0o4000_0000;
