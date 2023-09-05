@@ -1,4 +1,5 @@
 #![feature(box_patterns)]
+#![feature(if_let_guard)]
 use std::arch::asm;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -22,11 +23,11 @@ lazy_static! {
     static ref STACK_TOP: usize = stack_ptr();
 }
 fn stack_ptr() -> usize {
-    let mut ptr: usize = 0;
     unsafe {
+        let mut ptr: usize;
         asm!("mov {}, rsp", out(reg) ptr);
+        ptr
     }
-    ptr
 }
 fn stack_err() -> bool {
     *STACK_TOP - *STACK_MAX / 2 > stack_ptr()
@@ -140,28 +141,28 @@ impl Tree {
                 }
                 Tree::Out(sym, box mut tmp) => {
                     let snd = snd.calculate(dct)?;
-                    eprint!("{}", *PS_OUT);
-                    println!("{}", snd.translate().0);
+                    // eprint!("{}", *PS_OUT);
+                    // println!("{}", snd.translate(false, false));
                     tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym);
                     tmp.calculate(dct)
                 }
                 Tree::Opr(opr, name) => match snd.calculate(dct)? {
-                    Tree::Int(int) if !int.is_zero() || (name != ":/" && name != ":%") => Ok(Tree::OprInt(opr, name, int)),
-                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate().0)),
+                    Tree::Int(int) if !int.is_zero() || (name != "/" && name != "%") => Ok(Tree::OprInt(opr, name, int)),
+                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
                 Tree::Cmp(cmp, name) => match snd.calculate(dct)? {
                     Tree::Int(int) => Ok(Tree::CmpInt(cmp, name, int)),
-                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
                 Tree::OprInt(opr, name, int) => match snd.calculate(dct)? {
                     Tree::Int(val) => Ok(Tree::Int(opr(val, int))),
-                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
                 Tree::CmpInt(cmp, name, int) => match snd.calculate(dct)? {
                     Tree::Int(val) => Ok(Tree::Fun("T".to_string(), Box::new(Tree::Fun("F".to_string(), Box::new(Tree::Par(if cmp(val, int) { "T" } else { "F" }.to_string())))))),
-                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate().0)),
+                    snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
-                fst => Err(format!("invalid function: {}", fst.translate().0)),
+                fst => Err(format!("invalid function: {}", fst.translate(false, false))),
             },
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
@@ -206,23 +207,37 @@ impl Tree {
             _ => {}
         }
     }
-    fn translate(&self) -> (String, bool, bool) {
+    fn translate(&self, lb: bool, rb: bool) -> String {
         match self {
-            Tree::Fun(sym, box tree) => (format!("\\{} {}", sym, tree.translate().0), true, false),
-            Tree::Out(sym, box tree) => (format!("^{} {}", sym, tree.translate().0), true, false),
-            Tree::Par(s) => (format!("${}", s), false, false),
-            Tree::Def(s) => (format!("&{}", s), false, false),
-            Tree::Int(i) => (i.to_string(), false, false),
-            Tree::Opr(_, name) => (name.clone(), false, false),
-            Tree::Cmp(_, name) => (name.clone(), false, false),
-            Tree::OprInt(_, name, int) => (format!("{} {}", name, int), false, true),
-            Tree::CmpInt(_, name, int) => (format!("{} {}", name, int), false, true),
-            Tree::App(box fst, box snd) => {
-                let (lft, l, _) = fst.translate();
-                let (rgt, m, r) = snd.translate();
-                (format!("{} {}", if l { format!("({})", lft) } else { lft }, if r { format!("({})", rgt) } else { rgt }), m && !r, true)
+            Tree::Fun(sym, box tree) => {
+                let xxx = format!("\\{} {}", sym, tree.translate(false, rb && !rb));
+                if rb { format!("({})", xxx) } else { xxx }
             }
-            Tree::Arg(tree) => tree.borrow().0.translate(),
+            Tree::Out(sym, box tree) => {
+                let xxx = format!("^{} {}", sym, tree.translate(false, rb && !rb));
+                if rb { format!("({})", xxx) } else { xxx }
+            }
+            Tree::Int(i) => i.to_string(),
+            Tree::Opr(_, name) => name.clone(),
+            Tree::Cmp(_, name) => name.clone(),
+            Tree::OprInt(_, name, int) => {
+                let xxx = format!("{} {}", name, int);
+                if lb { format!("({})", xxx) } else { xxx }
+            }
+            Tree::CmpInt(_, name, int) => {
+                let xxx = format!("{} {}", name, int);
+                if lb { format!("({})", xxx) } else { xxx }
+            }
+            Tree::App(box fst, box snd) => {
+                let xxx = format!("{} {}", fst.translate(lb && !lb, true), snd.translate(true, rb && !lb));
+                if lb { format!("({})", xxx) } else { xxx }
+            }
+            Tree::Arg(tree) => {
+                let (shr, rec) = &*tree.borrow();
+                if *rec { shr.translate(lb, rb) } else { "...".to_string() }
+            }
+            Tree::Par(s) => format!("${}", s),
+            Tree::Def(s) => format!("&{}", s),
             _ => panic!("invalid tree"),
         }
     }
@@ -238,12 +253,12 @@ fn process(input: String, dct: &mut HashMap<String, Tree>) -> Result<(), String>
     } else if cmd == "cal" {
         let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(dct)?;
         eprint!("{}", *PS_RES);
-        println!("{}", res.translate().0);
+        println!("{}", res.translate(false, false));
         Ok(())
     } else if cmd == "dir" {
         for (key, val) in dct.iter() {
             eprint!("{}", *PS_OUT);
-            println!("&{:<8} {}", if key.len() <= 8 { key.clone() } else { format!("{}..", &key[..6]) }, val.translate().0);
+            println!("&{:<8} {}", if key.len() <= 8 { key.clone() } else { format!("{}..", &key[..6]) }, val.translate(false, false));
         }
         Ok(())
     } else if cmd == "clr" {

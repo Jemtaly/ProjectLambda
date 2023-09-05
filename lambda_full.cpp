@@ -180,8 +180,8 @@ class Tree {
             }
             case Token::Out: {
                 snd.calc();
-                std::cerr << ps_out;
-                std::cout << std::get<0>(snd.translate()) << std::endl;
+                // std::cerr << ps_out;
+                // std::cout << snd.translate() << std::endl;
                 auto &[par, tmp] = *std::get<Token::Out>(fst.var);
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
@@ -192,19 +192,19 @@ class Tree {
                     var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
                     return;
                 }
-                throw std::runtime_error("cannot apply " + std::get<0>(fst.translate()) + " on: " + std::get<0>(snd.translate()));
+                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
             case Token::Cmp:
                 if (snd.calc(), snd.var.index() == Token::Int) {
                     var = std::make_pair(std::get<Token::Cmp>(fst.var), std::move(std::get<Token::Int>(snd.var)));
                     return;
                 }
-                throw std::runtime_error("cannot apply " + std::get<0>(fst.translate()) + " on: " + std::get<0>(snd.translate()));
+                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
             case Token::OprInt:
                 if (snd.calc(), snd.var.index() == Token::Int) {
                     var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
                     return;
                 }
-                throw std::runtime_error("cannot apply " + std::get<0>(fst.translate()) + " on: " + std::get<0>(snd.translate()));
+                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
             case Token::CmpInt:
                 if (snd.calc(), snd.var.index() == Token::Int) {
                     static const auto T = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))));
@@ -212,9 +212,9 @@ class Tree {
                     *this = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second)) ? T : F;
                     return;
                 }
-                throw std::runtime_error("cannot apply " + std::get<0>(fst.translate()) + " on: " + std::get<0>(snd.translate()));
+                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
             default:
-                throw std::runtime_error("invalid function: " + std::get<0>(fst.translate()));
+                throw std::runtime_error("invalid function: " + fst.translate());
             }
         }
         case Token::Arg: {
@@ -311,35 +311,42 @@ public:
     static void clr() {
         return dct<Spc>.clear();
     }
-    std::tuple<std::string, bool, bool> translate() const {
+    std::string translate(bool lb = 0, bool rb = 0) const {
         switch (var.index()) {
-        case Token::Fun:
-            return {"\\" + std::get<Token::Fun>(var)->first + " " + std::get<0>(std::get<Token::Fun>(var)->second.translate()), 1, 0};
-        case Token::Out:
-            return {"^" + std::get<Token::Out>(var)->first + " " + std::get<0>(std::get<Token::Out>(var)->second.translate()), 1, 0};
-        case Token::Par:
-            return {"$" + std::get<Token::Par>(var), 0, 0};
-        case Token::Def:
-            return {"&" + std::get<Token::Def>(var), 0, 0};
-        case Token::Set:
-            return {"!" + std::get<Token::Set>(var), 0, 0};
+        case Token::Fun: {
+            auto s = "\\" + std::get<Token::Fun>(var)->first + " " + std::get<Token::Fun>(var)->second.translate(0, rb && !rb);
+            return rb ? "(" + s + ")" : s;
+        }
+        case Token::Out: {
+            auto s = "^" + std::get<Token::Out>(var)->first + " " + std::get<Token::Out>(var)->second.translate(0, rb && !rb);
+            return rb ? "(" + s + ")" : s;
+        }
         case Token::Int:
-            return {std::get<Token::Int>(var).to_string(), 0, 0};
+            return std::get<Token::Int>(var).to_string();
         case Token::Opr:
-            return {std::string{std::get<Token::Opr>(var).first}, 0, 0};
+            return std::string{std::get<Token::Opr>(var).first};
         case Token::Cmp:
-            return {std::string{std::get<Token::Cmp>(var).first}, 0, 0};
-        case Token::OprInt:
-            return {std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string(), 0, 1};
-        case Token::CmpInt:
-            return {std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string(), 0, 1};
+            return std::string{std::get<Token::Cmp>(var).first};
+        case Token::OprInt: {
+            auto s = std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string();
+            return lb ? "(" + s + ")" : s;
+        }
+        case Token::CmpInt: {
+            auto s = std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string();
+            return lb ? "(" + s + ")" : s;
+        }
         case Token::App: {
-            auto [lss, lbl, lbr] = std::get<Token::App>(var)->first.translate();
-            auto [rss, rbl, rbr] = std::get<Token::App>(var)->second.translate();
-            return {(lbl ? "(" + std::move(lss) + ")" : std::move(lss)) + " " + (rbr ? "(" + std::move(rss) + ")" : std::move(rss)), rbl && not rbr, 1};
+            auto s = std::get<Token::App>(var)->first.translate(lb && !lb, 1) + " " + std::get<Token::App>(var)->second.translate(1, rb && !lb);
+            return lb ? "(" + s + ")" : s;
         }
         case Token::Arg:
-            return std::get<Token::Arg>(var)->first.translate();
+            return std::get<Token::Arg>(var)->second ? std::get<Token::Arg>(var)->first.translate(lb, rb) : "...";
+        case Token::Par:
+            return "$" + std::get<Token::Par>(var);
+        case Token::Def:
+            return "&" + std::get<Token::Def>(var);
+        case Token::Set:
+            return "!" + std::get<Token::Set>(var);
         default:
             assert(false); // unreachable
         }
@@ -386,19 +393,19 @@ int main(int argc, char *argv[]) {
             } else if (cmd.size() == 3 && cmd == "fmt") {
                 auto &res = Tree::put<DEF>(std::move(exp), "");
                 std::cerr << ps_res;
-                std::cout << std::get<0>(res.translate()) << std::endl;
+                std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto &res = Tree::put<SET>(std::move(exp), "");
                 std::cerr << ps_res;
-                std::cout << std::get<0>(res.translate()) << std::endl;
+                std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto const &[key, val] : Tree::dir<DEF>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
+                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
                 }
                 for (auto const &[key, val] : Tree::dir<SET>()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << std::get<0>(val.translate()) << std::endl;
+                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr<DEF>();
