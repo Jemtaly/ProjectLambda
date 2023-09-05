@@ -184,7 +184,7 @@ class Tree {
                 return calc();
             }
             case Token::Opr:
-                if (snd.calc(), snd.var.index() == Token::Int && (std::get<Token::Int>(snd.var)) || std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%') {
+                if (snd.calc(), snd.var.index() == Token::Int && (std::get<Token::Int>(snd.var) || std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%')) {
                     var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
                     return;
                 }
