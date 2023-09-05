@@ -67,6 +67,7 @@ static CMPS: [(&str, Cmpt); 3] = [
 #[derive(Clone)]
 enum Tree {
     Empty,
+    Ellipsis,
     Int(BigInt),
     Opr(Oprt, String),
     Cmp(Cmpt, String),
@@ -119,6 +120,8 @@ impl Tree {
             Ok(Tree::Par(sym[1..].to_string()))
         } else if sym.starts_with('&') {
             Ok(Tree::Def(sym[1..].to_string()))
+        } else if sym == "..." {
+            Ok(Tree::Ellipsis)
         } else if let Some((name, opr)) = OPRS.iter().find(|(s, _)| *s == sym) {
             Ok(Tree::Opr(*opr, name.to_string()))
         } else if let Some((name, cmp)) = CMPS.iter().find(|(s, _)| *s == sym) {
@@ -217,6 +220,7 @@ impl Tree {
                 let xxx = format!("^{} {}", sym, tree.translate(false, rb && !rb));
                 if rb { format!("({})", xxx) } else { xxx }
             }
+            Tree::Ellipsis => "...".to_string(),
             Tree::Int(i) => i.to_string(),
             Tree::Opr(_, name) => name.clone(),
             Tree::Cmp(_, name) => name.clone(),
@@ -232,10 +236,7 @@ impl Tree {
                 let xxx = format!("{} {}", fst.translate(lb && !lb, true), snd.translate(true, rb && !lb));
                 if lb { format!("({})", xxx) } else { xxx }
             }
-            Tree::Arg(tree) => {
-                let (shr, rec) = &*tree.borrow();
-                if *rec { shr.translate(lb, rb) } else { "...".to_string() }
-            }
+            Tree::Arg(tree) => shr.translate(lb, rb),
             Tree::Par(s) => format!("${}", s),
             Tree::Def(s) => format!("&{}", s),
             _ => panic!("invalid tree"),

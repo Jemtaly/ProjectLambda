@@ -1,10 +1,11 @@
 #include <iomanip>
 #include <iostream>
+#include <optional>
+#include <variant>
+#include <cassert>
 #include <string>
 #include <memory>
 #include <unordered_map>
-#include <variant>
-#include <cassert>
 #include "node.hpp"
 #include "slice.hpp"
 #ifdef USE_GMP
@@ -82,7 +83,7 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 };
 class Tree {
     enum Token: std::size_t {
-        Ini, Int,
+        Ini, Ell, Int,
         Opr, OprInt,
         Cmp, CmpInt,
         Fun, Out,
@@ -90,7 +91,7 @@ class Tree {
         Par, Def, Set,
     };
     using Var = std::variant<
-        std::monostate, StrInt,
+        std::nullopt_t, std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
@@ -115,7 +116,7 @@ class Tree {
             return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         }
     }
-    // static Tree parse(Slice &&exp, Tree &&fst = std::monostate()) {
+    // static Tree parse(Slice &&exp, Tree &&fst = std::nullopt) {
     //     if (auto sym = read(exp); sym.empty()) {
     //         return first(std::move(fst));
     //     } else if (sym[0] == '\\') {
@@ -130,7 +131,7 @@ class Tree {
     //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
     //     }
     // }
-    static Tree parse(Slice &&exp, Tree &&fun = std::monostate(), Tree &&fst = std::monostate()) {
+    static Tree parse(Slice &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
@@ -154,6 +155,8 @@ class Tree {
             return Tree(std::in_place_index<Token::Def>, sym(1, 0));
         } else if (sym[0] == '!') {
             return Tree(std::in_place_index<Token::Set>, sym(1, 0));
+        } else if (sym.size() == 3 && sym == "...") {
+            return Tree(std::in_place_index<Token::Ell>);
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
             return Tree(std::in_place_index<Token::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
@@ -321,6 +324,8 @@ public:
             auto s = "^" + std::get<Token::Out>(var)->first + " " + std::get<Token::Out>(var)->second.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
         }
+        case Token::Ell:
+            return "...";
         case Token::Int:
             return std::get<Token::Int>(var).to_string();
         case Token::Opr:
@@ -340,7 +345,7 @@ public:
             return lb ? "(" + s + ")" : s;
         }
         case Token::Arg:
-            return std::get<Token::Arg>(var)->second ? std::get<Token::Arg>(var)->first.translate(lb, rb) : "...";
+            return std::get<Token::Arg>(var)->first.translate(lb, rb);
         case Token::Par:
             return "$" + std::get<Token::Par>(var);
         case Token::Def:
