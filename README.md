@@ -27,9 +27,9 @@ make SOURCE=lambda_lite.cpp USE_GMP=1 # lite version using GNU MP Bignum Library
 
 ## Syntax
 
+Applications are assumed to be left associative: `M N P` and `((M N) P)` are equivalent.
+
 | symbol | meaning |
-| --- | --- |
-| `(EXPR)` | Applications are assumed to be left associative: `M N P` and `((M N) P)` are equivalent. |
 | `\PAR EXPR` | Lambda expression, `PAR` is the formal parameter, `EXPR` is the body, the body of an abstraction extends as far right as possible. Example: `\x \y $y $x` => $\lambda x.\lambda y.y\ x$ |
 | `EXPR \|PAR1 ARG1 \|PAR2 ARG2 ... ` | This is a syntactic sugar for lambda expressions whose arguments are already determined. If you know haskell, think of it as something like `where` in that. <br/>`\|PAR` has lower priority than apply, but higher than `\PAR`. Example: `\y $x $y $z \|z + 1 2 \|x \a \b $t $a $b \|t +` => `\y ($x $y $z \|z (+ 1 2) \|x \a \b ($t $a $b \|t +))`. |
 | `^PAR EXPR` or `EXPR @PAR ARG` | These two are similar to `\PAR EXPR` and `EXPR \|PAR ARG`, but their arguments will not be lazy, which means, the arguments will be computed before they are brought into the function. |
