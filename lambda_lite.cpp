@@ -167,98 +167,96 @@ class Tree {
         if (stack_err()) {
             throw std::runtime_error("recursion too deep");
         }
-        switch (var.index()) {
-        case Token::App: {
-            auto &[fst, snd] = *std::get<Token::App>(var);
-            switch (fst.calc(), fst.var.index()) {
-            case Token::Fun: {
-                auto &[par, tmp] = *std::get<Token::Fun>(fst.var);
+        if (auto ttr = std::get_if<Token::App>(&var); ttr) {
+            auto &[fst, snd] = **ttr;
+            fst.calc();
+            if (auto ptr = std::get_if<Token::Ell>(&fst.var); ptr) {
+                var.emplace<Token::Ell>();
+            } else if (auto ptr = std::get_if<Token::Fun>(&fst.var); ptr) {
+                auto &[par, tmp] = **ptr;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
                 *this = Tree(std::move(tmp));
-                return calc();
-            }
-            case Token::Out: {
+                calc();
+            } else if (auto ptr = std::get_if<Token::Out>(&fst.var); ptr) {
                 snd.calc();
-                // std::cerr << ps_out;
-                // std::cout << snd.translate() << std::endl;
-                auto &[par, tmp] = *std::get<Token::Out>(fst.var);
+                auto &[par, tmp] = **ptr;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
-                return calc();
-            }
-            case Token::Opr:
-                if (snd.calc(), snd.var.index() == Token::Int && (std::get<Token::Int>(snd.var) || std::get<Token::Opr>(fst.var).first != '/' && std::get<Token::Opr>(fst.var).first != '%')) {
-                    var = std::make_pair(std::get<Token::Opr>(fst.var), std::move(std::get<Token::Int>(snd.var)));
-                    return;
+                calc();
+            } else if (auto ptr = std::get_if<Token::Opr>(&fst.var); ptr) {
+                snd.calc();
+                if (auto qtr = std::get_if<Token::Int>(&snd.var); qtr && (*qtr || ptr->first != '/' && ptr->first != '%')) {
+                    var = std::make_pair(std::move(*ptr), std::move(*qtr));
+                } else {
+                    throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
-            case Token::Cmp:
-                if (snd.calc(), snd.var.index() == Token::Int) {
-                    var = std::make_pair(std::get<Token::Cmp>(fst.var), std::move(std::get<Token::Int>(snd.var)));
-                    return;
+            } else if (auto ptr = std::get_if<Token::Cmp>(&fst.var); ptr) {
+                snd.calc();
+                if (auto qtr = std::get_if<Token::Int>(&snd.var); qtr) {
+                    var = std::make_pair(std::move(*ptr), std::move(*qtr));
+                } else {
+                    throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
-            case Token::OprInt:
-                if (snd.calc(), snd.var.index() == Token::Int) {
-                    var = std::get<Token::OprInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::OprInt>(fst.var).second));
-                    return;
+            } else if (auto ptr = std::get_if<Token::OprInt>(&fst.var); ptr) {
+                snd.calc();
+                if (auto qtr = std::get_if<Token::Int>(&snd.var); qtr) {
+                    var = ptr->first.second(std::move(*qtr), std::move(ptr->second));
+                } else {
+                    throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
-            case Token::CmpInt:
-                if (snd.calc(), snd.var.index() == Token::Int) {
+            } else if (auto ptr = std::get_if<Token::CmpInt>(&fst.var); ptr) {
+                snd.calc();
+                if (auto qtr = std::get_if<Token::Int>(&snd.var); qtr) {
                     static const auto T = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))));
                     static const auto F = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
-                    *this = std::get<Token::CmpInt>(fst.var).first.second(std::move(std::get<Token::Int>(snd.var)), std::move(std::get<Token::CmpInt>(fst.var).second)) ? T : F;
-                    return;
+                    *this = ptr->first.second(std::move(*qtr), std::move(ptr->second)) ? T : F;
+                } else {
+                    throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-                throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
-            default:
+            } else {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }
-        }
-        case Token::Arg: {
-            auto &arg = std::get<Token::Arg>(var);
-            if (not arg->second) {
-                arg->first.calc();
-                arg->second = true;
+        } else if (auto ttr = std::get_if<Token::Arg>(&var); ttr) {
+            auto &[shr, rec] = **ttr;
+            if (not rec) {
+                shr.calc();
+                rec = true;
             }
-            if (arg.use_count() == 1) {
-                *this = Tree(std::move(arg->first));
+            if (ttr->use_count() == 1) {
+                *this = Tree(std::move(shr));
             } else {
-                *this = arg->first;
+                *this = shr;
             }
-        } break;
-        case Token::Par:
-            throw std::runtime_error("unbound variable: $" + std::get<Token::Par>(var));
-        case Token::Def:
-            if (auto const &it = dct.find(std::get<Token::Def>(var)); it != dct.end()) {
+        } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
+            throw std::runtime_error("unbound variable: $" + *ttr);
+        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
+            if (auto const &it = dct.find(*ttr); it != dct.end()) {
                 *this = it->second;
-                return calc();
+                calc();
+            } else {
+                throw std::runtime_error("undefined symbol: &" + *ttr);
             }
-            throw std::runtime_error("undefined symbol: &" + std::get<Token::Def>(var));
         }
     }
-    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &par) {
-        switch (var.index()) {
-        case Token::Fun:
-            if (std::get<Token::Fun>(var)->first != par) {
-                std::get<Token::Fun>(var)->second.substitute(arg, par);
+    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &pin) {
+        if (auto ttr = std::get_if<Token::App>(&var); ttr) {
+            auto &[fst, snd] = **ttr;
+            fst.substitute(arg, pin);
+            snd.substitute(arg, pin);
+        } else if (auto ttr = std::get_if<Token::Fun>(&var); ttr) {
+            auto &[par, tmp] = **ttr;
+            if (par != pin) {
+                tmp.substitute(arg, pin);
             }
-            return;
-        case Token::Out:
-            if (std::get<Token::Out>(var)->first != par) {
-                std::get<Token::Out>(var)->second.substitute(arg, par);
+        } else if (auto ttr = std::get_if<Token::Out>(&var); ttr) {
+            auto &[par, tmp] = **ttr;
+            if (par != pin) {
+                tmp.substitute(arg, pin);
             }
-            return;
-        case Token::App:
-            std::get<Token::App>(var)->first.substitute(arg, par);
-            std::get<Token::App>(var)->second.substitute(arg, par);
-            return;
-        case Token::Par:
-            if (std::get<Token::Par>(var) == par) {
+        } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
+            if (*ttr == pin) {
                 var.emplace<Token::Arg>(arg);
             }
-            return;
         }
     }
     static inline std::unordered_map<std::string, Tree> dct;
@@ -278,42 +276,40 @@ public:
         return dct.clear();
     }
     std::string translate(bool lb = 0, bool rb = 0) const {
-        switch (var.index()) {
-        case Token::Fun: {
-            auto s = "\\" + std::get<Token::Fun>(var)->first + " " + std::get<Token::Fun>(var)->second.translate(0, rb && !rb);
-            return rb ? "(" + s + ")" : s;
-        }
-        case Token::Out: {
-            auto s = "^" + std::get<Token::Out>(var)->first + " " + std::get<Token::Out>(var)->second.translate(0, rb && !rb);
-            return rb ? "(" + s + ")" : s;
-        }
-        case Token::Ell:
+        if (auto ttr = std::get_if<Token::Ell>(&var); ttr) {
             return "...";
-        case Token::Int:
-            return std::get<Token::Int>(var).to_string();
-        case Token::Opr:
-            return std::string{std::get<Token::Opr>(var).first};
-        case Token::Cmp:
-            return std::string{std::get<Token::Cmp>(var).first};
-        case Token::OprInt: {
-            auto s = std::string{std::get<Token::OprInt>(var).first.first, ' '} + std::get<Token::OprInt>(var).second.to_string();
+        } else if (auto ttr = std::get_if<Token::Fun>(&var); ttr) {
+            auto &[par, tmp] = **ttr;
+            auto s = "\\" + par + " " + tmp.translate(0, rb && !rb);
+            return rb ? "(" + s + ")" : s;
+        } else if (auto ttr = std::get_if<Token::Out>(&var); ttr) {
+            auto &[par, tmp] = **ttr;
+            auto s = "^" + par + " " + tmp.translate(0, rb && !rb);
+            return rb ? "(" + s + ")" : s;
+        } else if (auto ttr = std::get_if<Token::Int>(&var); ttr) {
+            return ttr->to_string();
+        } else if (auto ttr = std::get_if<Token::Opr>(&var); ttr) {
+            return std::string{ttr->first};
+        } else if (auto ttr = std::get_if<Token::Cmp>(&var); ttr) {
+            return std::string{ttr->first};
+        } else if (auto ttr = std::get_if<Token::OprInt>(&var)) {
+            auto s = std::string{ttr->first.first, ' '} + ttr->second.to_string();
             return lb ? "(" + s + ")" : s;
-        }
-        case Token::CmpInt: {
-            auto s = std::string{std::get<Token::CmpInt>(var).first.first, ' '} + std::get<Token::CmpInt>(var).second.to_string();
+        } else if (auto ttr = std::get_if<Token::CmpInt>(&var)) {
+            auto s = std::string{ttr->first.first, ' '} + ttr->second.to_string();
             return lb ? "(" + s + ")" : s;
-        }
-        case Token::App: {
-            auto s = std::get<Token::App>(var)->first.translate(lb && !lb, 1) + " " + std::get<Token::App>(var)->second.translate(1, rb && !lb);
+        } else if (auto ttr = std::get_if<Token::App>(&var); ttr) {
+            auto &[fst, snd] = **ttr;
+            auto s = fst.translate(lb && !lb, 1) + " " + snd.translate(1, rb && !lb);
             return lb ? "(" + s + ")" : s;
-        }
-        case Token::Arg:
-            return std::get<Token::Arg>(var)->first.translate(lb, rb);
-        case Token::Par:
-            return "$" + std::get<Token::Par>(var);
-        case Token::Def:
-            return "&" + std::get<Token::Def>(var);
-        default:
+        } else if (auto ttr = std::get_if<Token::Arg>(&var); ttr) {
+            auto &[shr, rec] = **ttr;
+            return shr.translate(lb, rb);
+        } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
+            return "$" + *ttr;
+        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
+            return "&" + *ttr;
+        } else {
             assert(false); // unreachable
         }
     }

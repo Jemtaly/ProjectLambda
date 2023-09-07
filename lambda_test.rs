@@ -176,11 +176,7 @@ impl Tree {
                 Ok(if Rc::strong_count(&arg) == 1 { mem::replace(shr, Tree::Empty) } else { shr.clone() })
             }
             Tree::Par(key) => {
-                if let Some(def) = dct.get(&key) {
-                    def.clone().calculate(dct)
-                } else {
-                    Err(format!("unbound variable: ${}", key))
-                }
+                Err(format!("unbound variable: ${}", key))
             }
             Tree::Def(key) => {
                 if let Some(def) = dct.get(&key) {
