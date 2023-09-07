@@ -138,6 +138,7 @@ impl Tree {
         }
         match self {
             Tree::App(box fst, box snd) => match fst.calculate(dct)? {
+                Tree::Ellipsis => Ok(Tree::Ellipsis),
                 Tree::Fun(sym, box mut tmp) => {
                     tmp.substitute(&Rc::new(RefCell::new((snd, false))), &sym);
                     tmp.calculate(dct)
