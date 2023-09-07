@@ -1,0 +1,51 @@
+# Y combinator
+&Y \g $g ($x $x) |x \x $g ($x $x)
+
+# True and false
+&T \T \F $T
+&F \T \F $F
+
+# Logical operators (Id, Not, And, Or, Xor)
+&= \c $c &T &F
+&~ \c $c &F &T
+&& \c \d $c $d &F
+&| \c \d $c &T $d
+&^ \c $c &= &~
+
+# List operators (Cons, Car, Cdr, Drop, Map, ZipWith, Filter, Scan)
+&con \a \b \o $o $a $b
+&car \l $l \a \d $a
+&cdr \l $l \a \d $d
+&drp \n \l = 0 $n $l (&drp (- 1 $n) (&cdr $l))
+&map \f \l &con ($f (&car $l)) (&map $f (&cdr $l))
+&zip \f \l \m &con ($f (&car $l) (&car $m)) (&zip $f (&cdr $l) (&cdr $m))
+&flt \c \l $c (&car $l) (&con (&car $l) (&flt $c (&cdr $l))) (&flt $c (&cdr $l))
+&scn \f \a \l &con $a (&scn $f ($f $a (&car $l)) (&cdr $l))
+
+# Non-lazy list constructor
+&CON ^a ^b \o $o $a $b
+
+# Evaluate the first n elements of a list
+&EVL \n \l = 0 $n ... (&CON (&car $l) (&EVL (- 1 $n) (&cdr $l)))
+
+# Three different implementations of the Fibonacci sequence
+&fib \0 \1 &con $0 (&fib $1 (+ $0 $1))
+cal &EVL 1024 (&fib 0 1)
+&fib \0 \1 &Y \fib &con $0 (&scn + $1 $fib)
+cal &EVL 1024 (&fib 0 1)
+&fib \0 \1 &Y \f &con $0 (&con $1 (&zip + $f (&cdr $f)))
+cal &EVL 1024 (&fib 0 1)
+
+# 2D space vector operations (Non-lazy construct, Add, Multiply)
+&VEC ^x ^y \o $o $x $y
+&add \u $u \a \b \v $v \c \d &VEC (+ $a $c) (+ $b $d)
+&mul \u $u \a \b \v $v \c \d &VEC (- (* $b $d) (* $a $c)) (+ (* $a $d) (* $b $c))
+
+# Regular paper folding sequence
+&hlp \r &con (&VEC 0 (- 1 0)) ($r \a \p &con $a (&con (&VEC 0 (+ 1 0)) ($p \b \q &con $b (&hlp $q))))
+&rpf &hlp &rpf
+
+# Generate first 1024 points on the dragon curve from the regular paper folding sequence
+&dir &scn &mul (&VEC 1 0) &rpf
+&pos &scn &add (&VEC 0 0) &dir
+cal &EVL 1024 &pos

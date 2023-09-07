@@ -275,11 +275,11 @@ class Tree {
             auto &[fst, snd] = **ttr;
             return Tree(std::in_place_index<Token::App>, Node<std::pair<Tree, Tree>>::make(fst.deepcopy(map), snd.deepcopy(map)));
         } else if (auto ttr = std::get_if<Token::Fun>(&var); ttr) {
-            auto &[xxx, snd] = **ttr;
-            return Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(xxx, snd.deepcopy(map)));
+            auto &[par, tmp] = **ttr;
+            return Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(par, tmp.deepcopy(map)));
         } else if (auto ttr = std::get_if<Token::Out>(&var); ttr) {
-            auto &[xxx, snd] = **ttr;
-            return Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(xxx, snd.deepcopy(map)));
+            auto &[par, tmp] = **ttr;
+            return Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(par, tmp.deepcopy(map)));
         } else if (auto ttr = std::get_if<Token::Arg>(&var); ttr) {
             auto &[shr, rec] = **ttr;
             if (auto const &it = map.find(*ttr); it != map.end()) {

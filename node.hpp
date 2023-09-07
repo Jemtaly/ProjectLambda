@@ -44,10 +44,16 @@ public:
     static Node make(Args &&...args) {
         return Node(new T(std::forward<Args>(args)...));
     }
-    T &operator*() const {
+    T const &operator*() const & {
         return *data;
     }
-    T *operator->() const {
+    T const *operator->() const & {
+        return data;
+    }
+    T &operator*() & {
+        return *data;
+    }
+    T *operator->() & {
         return data;
     }
     operator bool() const {
