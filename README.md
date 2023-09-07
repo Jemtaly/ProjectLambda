@@ -143,7 +143,7 @@ cal &NonLazyTriple (+ 0 0) (+ 1 1) (+ 2 2)
 # output: \o $o 0 2 4
 ```
 
-In fact, using this syntax, if you have a lazy-evaluated infinite array (of the form `\o $o ... \o $o ... \o $o \o $o ... ... ), you can quickly calculate the value of its first n elements through the following function:
+In fact, using this syntax, if you have a lazy-evaluated infinite array (of the form `\o $o ... \o $o ... \o $o \o $o ... ...`), you can quickly calculate the value of its first n elements through the following function:
 
 ```
 &LazyCons \a \b \o $o $a $b
