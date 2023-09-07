@@ -38,6 +38,7 @@ make SOURCE=lambda_lite.cpp USE_GMP=1 # lite version using GNU MP Bignum Library
 | `!VAR` | Call the function/variable defined by `set` instruction. |
 | `+` `-` `*` `/` `%` | Binary operators, in the form of operands-swapped prefix expressions, e.g., $(5-2)/3$ should be represented as `/ 3 (- 2 5)`. |
 | `>` `<` `=` | Comparison operators, which takes four arguments, compares the first two arguments (as same as binary operaters, the operands should be swapped) and returns the third if the result is true and the fourth if the result is false. For example, `> 1 2 3 4` equals to `2 > 1 ? 3 : 4` in C. |
+| `...` | Nil. As a function, it gets itself when applied to any argument. |
 
 **Note:** The spaces between the above symbols should not be omitted.
 
