@@ -128,7 +128,7 @@ cal &eval 10 (&fib 0 1)
 
 ### Difference between CBN and CBV Version
 
-The main difference between the CBN and CBV versions lies in the storage and calling of global variables: in the CBV version, global variables are stored in shared pointers, just like arguments in lambda calculus, so they are only evaluated once if needed. However, to avoid circular references, named functions in this version cannot directly recursively call themselves or undefined functions, and must also use the Y combinator. On the other hand, in the CBN version, global functions and variables are stored directly as unevaluated syntax trees, and a new copy is created and recalculated each time they are used. Therefore, named functions in this version can directly reference themselves or variables/functions that are not yet defined.
+The main difference between the CBN and CBV versions lies in the storage and calling of global variables: in the CBV version, global variables are stored in shared pointers, just like arguments in lambda calculus, so they are only evaluated once if needed. However, to avoid circular references, named functions in this version cannot directly recursively call themselves or undefined functions, they must use Y combinators to implement recursion, just like those anonymous functions. On the other hand, in the CBN version, global functions and variables are stored directly as unevaluated syntax trees, and a new copy is created and recalculated each time they are used. Therefore, named functions in this version can directly reference themselves or variables/functions that are not yet defined.
 
 ### Calculating the factorial of 99 using recursion
 
