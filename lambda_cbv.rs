@@ -78,7 +78,7 @@ enum Tree {
     App(Box<Tree>, Box<Tree>),
     Arg(Rc<RefCell<(Tree, bool)>>),
     Par(String),
-    Def(String),
+    Glb(String),
 }
 impl Tree {
     fn first(fst: Tree) -> Result<Tree, String> {
@@ -119,7 +119,7 @@ impl Tree {
         } else if sym.starts_with('$') {
             Ok(Tree::Par(sym[1..].to_string()))
         } else if sym.starts_with('&') {
-            Ok(Tree::Def(sym[1..].to_string()))
+            Ok(Tree::Glb(sym[1..].to_string()))
         } else if sym == "..." {
             Ok(Tree::Ellipsis)
         } else if let Some((name, opr)) = OPRS.iter().find(|(s, _)| *s == sym) {
@@ -132,37 +132,35 @@ impl Tree {
             Err(format!("unknown symbol: {}", sym))
         }
     }
-    fn calculate(self, dct: &HashMap<String, Tree>) -> Result<Self, String> {
+    fn calculate(self, map: &HashMap<String, Tree>) -> Result<Self, String> {
         if stack_err() {
             return Err("recursion limit exceeded".to_string());
         }
         match self {
-            Tree::App(box fst, box snd) => match fst.calculate(dct)? {
+            Tree::App(box fst, box snd) => match fst.calculate(map)? {
                 Tree::Ellipsis => Ok(Tree::Ellipsis),
                 Tree::Fun(sym, box mut tmp) => {
                     tmp.substitute(&Rc::new(RefCell::new((snd, false))), &sym);
-                    tmp.calculate(dct)
+                    tmp.calculate(map)
                 }
                 Tree::Out(sym, box mut tmp) => {
-                    let snd = snd.calculate(dct)?;
-                    // eprint!("{}", *PS_OUT);
-                    // println!("{}", snd.translate(false, false));
+                    let snd = snd.calculate(map)?;
                     tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym);
-                    tmp.calculate(dct)
+                    tmp.calculate(map)
                 }
-                Tree::Opr(opr, name) => match snd.calculate(dct)? {
+                Tree::Opr(opr, name) => match snd.calculate(map)? {
                     Tree::Int(int) if !int.is_zero() || (name != "/" && name != "%") => Ok(Tree::OprInt(opr, name, int)),
                     snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
-                Tree::Cmp(cmp, name) => match snd.calculate(dct)? {
+                Tree::Cmp(cmp, name) => match snd.calculate(map)? {
                     Tree::Int(int) => Ok(Tree::CmpInt(cmp, name, int)),
                     snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
-                Tree::OprInt(opr, name, int) => match snd.calculate(dct)? {
+                Tree::OprInt(opr, name, int) => match snd.calculate(map)? {
                     Tree::Int(val) => Ok(Tree::Int(opr(val, int))),
                     snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
-                Tree::CmpInt(cmp, name, int) => match snd.calculate(dct)? {
+                Tree::CmpInt(cmp, name, int) => match snd.calculate(map)? {
                     Tree::Int(val) => Ok(Tree::Fun("T".to_string(), Box::new(Tree::Fun("F".to_string(), Box::new(Tree::Par(if cmp(val, int) { "T" } else { "F" }.to_string())))))),
                     snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
@@ -171,7 +169,7 @@ impl Tree {
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
                 if !*rec {
-                    *shr = mem::replace(shr, Tree::Empty).calculate(dct)?;
+                    *shr = mem::replace(shr, Tree::Empty).calculate(map)?;
                     *rec = true;
                 }
                 Ok(if Rc::strong_count(&arg) == 1 { mem::replace(shr, Tree::Empty) } else { shr.clone() })
@@ -179,9 +177,9 @@ impl Tree {
             Tree::Par(key) => {
                 Err(format!("unbound variable: ${}", key))
             }
-            Tree::Def(key) => {
-                if let Some(def) = dct.get(&key) {
-                    def.clone().calculate(dct)
+            Tree::Glb(key) => {
+                if let Some(glb) = map.get(&key) {
+                    glb.clone().calculate(map)
                 } else {
                     Err(format!("undefined symbol: &{}", key))
                 }
@@ -233,41 +231,44 @@ impl Tree {
                 let xxx = format!("{} {}", fst.translate(lb && !lb, true), snd.translate(true, rb && !lb));
                 if lb { format!("({})", xxx) } else { xxx }
             }
-            Tree::Arg(tree) => shr.translate(lb, rb),
-            Tree::Par(s) => format!("${}", s),
-            Tree::Def(s) => format!("&{}", s),
+            Tree::Arg(arg) => {
+                let (shr, rec) = &*arg.borrow();
+                shr.translate(lb, rb)
+            }
+            Tree::Par(key) => format!("${}", key),
+            Tree::Glb(key) => format!("&{}", key),
             _ => panic!("invalid tree"),
         }
     }
 }
-fn process(input: String, dct: &mut HashMap<String, Tree>) -> Result<(), String> {
+fn process(input: String, map: &mut HashMap<String, Tree>) -> Result<(), String> {
     let (cmd, exp) = read(&input)?;
     if cmd.is_empty() || cmd == "#" {
         Ok(())
-    } else if cmd.starts_with('&') {
-        let def = Tree::parse(exp, Tree::Empty, Tree::Empty)?;
-        dct.insert(cmd[1..].to_string(), def);
+    } else if cmd.starts_with(':') {
+        let glb = Tree::parse(exp, Tree::Empty, Tree::Empty)?;
+        map.insert(cmd[1..].to_string(), glb);
         Ok(())
     } else if cmd == "cal" {
-        let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(dct)?;
+        let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(map)?;
         eprint!("{}", *PS_RES);
         println!("{}", res.translate(false, false));
         Ok(())
     } else if cmd == "dir" {
-        for (key, val) in dct.iter() {
+        for (key, val) in map.iter() {
             eprint!("{}", *PS_OUT);
-            println!("&{:<8} {}", if key.len() <= 8 { key.clone() } else { format!("{}..", &key[..6]) }, val.translate(false, false));
+            println!(":{:<8} {}", if key.len() <= 8 { key.clone() } else { format!("{}..", &key[..6]) }, val.translate(false, false));
         }
         Ok(())
     } else if cmd == "clr" {
-        dct.clear();
+        map.clear();
         Ok(())
     } else {
         Err(format!("unknown command: {}", cmd))
     }
 }
 fn main() {
-    let mut dct = HashMap::new();
+    let mut map = HashMap::new();
     let mut nxt = true;
     while nxt {
         eprint!("{}", *PS_IN);
@@ -287,8 +288,8 @@ fn main() {
         if input.ends_with('\r') {
             input.pop();
         }
-        if let Err(err) = process(input, &mut dct) {
-            eprintln!("Error: {}", err);
+        if let Err(err) = process(input, &mut map) {
+            eprintln!("Runtime Error: {}", err);
         }
     }
 }

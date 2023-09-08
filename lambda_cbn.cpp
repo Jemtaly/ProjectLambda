@@ -19,8 +19,6 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #endif
-#define DEF 0
-#define SET 1
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
 #endif
@@ -87,16 +85,14 @@ class Tree {
         Opr, OprInt,
         Cmp, CmpInt,
         Fun, Out,
-        App, Arg,
-        Par, Def, Set,
+        App, Arg, Par,
     };
     using Var = std::variant<
         std::nullopt_t, std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
-        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string, std::string, std::string>;
+        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>, std::string>;
     Var var;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
@@ -151,10 +147,6 @@ class Tree {
             return parse(sym(1, -1));
         } else if (sym[0] == '$') {
             return Tree(std::in_place_index<Token::Par>, sym(1, 0));
-        } else if (sym[0] == '&') {
-            return Tree(std::in_place_index<Token::Def>, sym(1, 0));
-        } else if (sym[0] == '!') {
-            return Tree(std::in_place_index<Token::Set>, sym(1, 0));
         } else if (sym.size() == 3 && sym == "...") {
             return Tree(std::in_place_index<Token::Ell>);
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
@@ -233,20 +225,6 @@ class Tree {
             }
         } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
             throw std::runtime_error("unbound variable: $" + *ttr);
-        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
-            if (auto const &it = dct<DEF>.find(*ttr); it != dct<DEF>.end()) {
-                *this = it->second;
-                calc();
-            } else {
-                throw std::runtime_error("undefined symbol: &" + *ttr);
-            }
-        } else if (auto ttr = std::get_if<Token::Set>(&var); ttr) {
-            if (auto const &it = dct<SET>.find(*ttr); it != dct<SET>.end()) {
-                std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> map;
-                *this = it->second.deepcopy(map);
-            } else {
-                throw std::runtime_error("undefined symbol: !" + *ttr);
-            }
         }
     }
     void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &pin) {
@@ -270,44 +248,24 @@ class Tree {
             }
         }
     }
-    Tree deepcopy(std::unordered_map<std::shared_ptr<std::pair<Tree, bool>>, std::shared_ptr<std::pair<Tree, bool>> const> &map) const {
-        if (auto ttr = std::get_if<Token::App>(&var); ttr) {
-            auto &[fst, snd] = **ttr;
-            return Tree(std::in_place_index<Token::App>, Box<std::pair<Tree, Tree>>::make(fst.deepcopy(map), snd.deepcopy(map)));
-        } else if (auto ttr = std::get_if<Token::Fun>(&var); ttr) {
-            auto &[par, tmp] = **ttr;
-            return Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make(par, tmp.deepcopy(map)));
-        } else if (auto ttr = std::get_if<Token::Out>(&var); ttr) {
-            auto &[par, tmp] = **ttr;
-            return Tree(std::in_place_index<Token::Out>, Box<std::pair<std::string, Tree>>::make(par, tmp.deepcopy(map)));
-        } else if (auto ttr = std::get_if<Token::Arg>(&var); ttr) {
-            auto &[shr, rec] = **ttr;
-            if (auto const &it = map.find(*ttr); it != map.end()) {
-                return it->second;
-            }
-            return map.emplace(*ttr, std::make_shared<std::pair<Tree, bool>>(shr.deepcopy(map), rec)).first->second;
-        } else {
-            return *this;
-        }
-    }
-    template <bool Spc>
-    static inline std::unordered_map<std::string, Tree> dct;
+    static inline std::unordered_map<std::string, std::shared_ptr<std::pair<Tree, bool>>> map;
 public:
-    template <bool Spc>
-    static auto const &put(Slice &&exp, std::string const &key) {
+    static auto const &put(Slice &&exp, std::string const &key, bool calc) {
         auto res = parse(std::move(exp));
-        if constexpr (Spc == SET) {
+        for (auto &[par, tmp] : map) {
+            res.substitute(tmp, par);
+        }
+        map.erase(key);
+        if (calc) {
             res.calc();
         }
-        return dct<Spc>.insert_or_assign(key, res).first->second;
+        return map.emplace(key, std::make_shared<std::pair<Tree, bool>>(std::move(res), calc)).first->second->first;
     }
-    template <bool Spc>
     static auto const &dir() {
-        return dct<Spc>;
+        return map;
     }
-    template <bool Spc>
     static void clr() {
-        return dct<Spc>.clear();
+        return map.clear();
     }
     std::string translate(bool lb = 0, bool rb = 0) const {
         if (auto ttr = std::get_if<Token::Ell>(&var); ttr) {
@@ -341,10 +299,6 @@ public:
             return shr.translate(lb, rb);
         } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
             return "$" + *ttr;
-        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
-            return "&" + *ttr;
-        } else if (auto ttr = std::get_if<Token::Set>(&var); ttr) {
-            return "!" + *ttr;
         } else {
             assert(false); // unreachable
         }
@@ -384,30 +338,19 @@ int main(int argc, char *argv[]) {
         try {
             if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
-            } else if (cmd[0] == '&') {
-                Tree::put<DEF>(std::move(exp), cmd(1, 0));
-            } else if (cmd[0] == '!') {
-                Tree::put<SET>(std::move(exp), cmd(1, 0));
-            } else if (cmd.size() == 3 && cmd == "fmt") {
-                auto &res = Tree::put<DEF>(std::move(exp), "");
-                std::cerr << ps_res;
-                std::cout << res.translate() << std::endl;
+            } else if (cmd[0] == ':') {
+                Tree::put(std::move(exp), cmd(1, 0), 0);
             } else if (cmd.size() == 3 && cmd == "cal") {
-                auto &res = Tree::put<SET>(std::move(exp), "");
+                auto &res = Tree::put(std::move(exp), "", 1);
                 std::cerr << ps_res;
                 std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
-                for (auto const &[key, val] : Tree::dir<DEF>()) {
+                for (auto &[key, val] : Tree::dir()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
-                }
-                for (auto const &[key, val] : Tree::dir<SET>()) {
-                    std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "!" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
+                    std::cout << ":" + key << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
-                Tree::clr<DEF>();
-                Tree::clr<SET>();
+                Tree::clr();
             } else if (cmd.size() == 3 && cmd == "end") {
                 end = true;
             } else {

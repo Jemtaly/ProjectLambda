@@ -86,7 +86,7 @@ class Tree {
         Cmp, CmpInt,
         Fun, Out,
         App, Arg,
-        Par, Def,
+        Par, Glb,
     };
     using Var = std::variant<
         std::nullopt_t, std::monostate, StrInt,
@@ -150,7 +150,7 @@ class Tree {
         } else if (sym[0] == '$') {
             return Tree(std::in_place_index<Token::Par>, sym(1, 0));
         } else if (sym[0] == '&') {
-            return Tree(std::in_place_index<Token::Def>, sym(1, 0));
+            return Tree(std::in_place_index<Token::Glb>, sym(1, 0));
         } else if (sym.size() == 3 && sym == "...") {
             return Tree(std::in_place_index<Token::Ell>);
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
@@ -229,8 +229,8 @@ class Tree {
             }
         } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
             throw std::runtime_error("unbound variable: $" + *ttr);
-        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
-            if (auto const &it = dct.find(*ttr); it != dct.end()) {
+        } else if (auto ttr = std::get_if<Token::Glb>(&var); ttr) {
+            if (auto const &it = map.find(*ttr); it != map.end()) {
                 *this = it->second;
                 calc();
             } else {
@@ -259,7 +259,7 @@ class Tree {
             }
         }
     }
-    static inline std::unordered_map<std::string, Tree> dct;
+    static inline std::unordered_map<std::string, Tree> map;
 public:
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
@@ -267,13 +267,13 @@ public:
         return res;
     }
     static void def(Slice &&exp, std::string const &key) {
-        dct.insert_or_assign(key, parse(std::move(exp)));
+        map.insert_or_assign(key, parse(std::move(exp)));
     }
     static auto const &dir() {
-        return dct;
+        return map;
     }
     static void clr() {
-        return dct.clear();
+        return map.clear();
     }
     std::string translate(bool lb = 0, bool rb = 0) const {
         if (auto ttr = std::get_if<Token::Ell>(&var); ttr) {
@@ -307,7 +307,7 @@ public:
             return shr.translate(lb, rb);
         } else if (auto ttr = std::get_if<Token::Par>(&var); ttr) {
             return "$" + *ttr;
-        } else if (auto ttr = std::get_if<Token::Def>(&var); ttr) {
+        } else if (auto ttr = std::get_if<Token::Glb>(&var); ttr) {
             return "&" + *ttr;
         } else {
             assert(false); // unreachable
@@ -348,16 +348,16 @@ int main(int argc, char *argv[]) {
         try {
             if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
-            } else if (cmd[0] == '&') {
+            } else if (cmd[0] == ':') {
                 Tree::def(std::move(exp), cmd(1, 0));
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto res = Tree::cal(std::move(exp));
                 std::cerr << ps_res;
                 std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
-                for (auto const &[key, val] : Tree::dir()) {
+                for (auto &[key, val] : Tree::dir()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << "&" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
+                    std::cout << std::left << std::setw(10) << ":" + (key.size() <= 8 ? key : key.substr(0, 6) + "..") << val.translate() << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr();
