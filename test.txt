@@ -10,40 +10,42 @@
 &~ \c $c &F &T
 && \c \d $c $d &F
 &| \c \d $c &T $d
-&^ \c $c &= &~
+&^ \c \d $c &= &~ $d
 
-# List operators (Cons, Car, Cdr, Drop, Map, ZipWith, Filter, Scan)
+# List operators (Cons, Car, Cdr, Drop, Map, Scan, Filter, ZipWith)
 &con \a \b \o $o $a $b
-&car \l $l \a \d $a
-&cdr \l $l \a \d $d
-&drp \n \l = 0 $n $l (&drp (- 1 $n) (&cdr $l))
-&map \f \l &con ($f (&car $l)) (&map $f (&cdr $l))
-&zip \f \l \m &con ($f (&car $l) (&car $m)) (&zip $f (&cdr $l) (&cdr $m))
-&flt \c \l $c (&car $l) (&con (&car $l) (&flt $c (&cdr $l))) (&flt $c (&cdr $l))
-&scn \f \a \l &con $a (&scn $f ($f $a (&car $l)) (&cdr $l))
+&car \l $l \a \_ $a
+&cdr \l $l \_ \d $d
+&drp \n \l = 0 $n $l ($l \_ \d &drp (- 1 $n) $d)
+&map \f \l $l \a \d &con ($f $a) (&map $f $d)
+&scn \f \x \l $l \a \d &con $x (&scn $f ($f $x $a) $d)
+&flt \c \l $l \a \d $c $a (&con $a (&flt $c $d)) (&flt $c $d)
+&zip \f \l \m $l \a \b $m \c \d &con ($f $a $c) (&zip $f $b $d)
 
 # Non-lazy list constructor
 &CON ^a ^b \o $o $a $b
 
 # Evaluate the first n elements of a list
-&EVL \n \l = 0 $n ... (&CON (&car $l) (&EVL (- 1 $n) (&cdr $l)))
+&EVL \n \l = 0 $n ... ($l \a \d &CON $a (&EVL (- 1 $n) $d))
 
 # Three different implementations of the Fibonacci sequence
-&fib \0 \1 &con $0 (&fib $1 (+ $0 $1))
-cal &EVL 1024 (&fib 0 1)
-&fib \0 \1 &Y \fib &con $0 (&scn + $1 $fib)
-cal &EVL 1024 (&fib 0 1)
-&fib \0 \1 &Y \f &con $0 (&con $1 (&zip + $f (&cdr $f)))
-cal &EVL 1024 (&fib 0 1)
+&fib \a \b &con $a (&fib $b (+ $a $b))
+cal &EVL 1024 $ | &fib 0 1
+&fib \a \b &Y \fib &con $a (&scn + $b $fib)
+cal &EVL 1024 $ | &fib 0 1
+&fib \a \b &Y \f &con $a (&con $b (&zip + $f (&cdr $f)))
+cal &EVL 1024 $ | &fib 0 1
 
 # 2D space vector operations (Non-lazy construct, Add, Multiply)
 &VEC ^x ^y \o $o $x $y
-&add \u $u \a \b \v $v \c \d &VEC (+ $a $c) (+ $b $d)
-&mul \u $u \a \b \v $v \c \d &VEC (- (* $b $d) (* $a $c)) (+ (* $a $d) (* $b $c))
+&add \u \v $u \a \b $v \c \d &VEC (+ $a $c) (+ $b $d)
+&mul \u \v $u \a \b $v \c \d &VEC (- (* $b $d) (* $a $c)) (+ (* $a $d) (* $b $c))
 
 # Regular paper folding sequence
-&hlp \r &con (&VEC 0 (- 1 0)) ($r \a \p &con $a (&con (&VEC 0 (+ 1 0)) ($p \b \q &con $b (&hlp $q))))
-&rpf &hlp &rpf
+&lft &VEC 0 (- 1 0)
+&rgt &VEC 0 (+ 1 0)
+&ins \r &con &lft ($r \a \p &con $a (&con &rgt ($p \b \q &con $b (&ins $q))))
+&rpf &ins &rpf
 
 # Generate first 1024 points on the dragon curve from the regular paper folding sequence
 &dir &scn &mul (&VEC 1 0) &rpf

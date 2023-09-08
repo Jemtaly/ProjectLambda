@@ -6,7 +6,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
-#include "node.hpp"
+#include "container.hpp"
 #include "slice.hpp"
 #ifdef USE_GMP
 #include "gmpint.hpp"
@@ -92,14 +92,14 @@ class Tree {
         std::nullopt_t, std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        Node<std::pair<std::string, Tree>>, Node<std::pair<std::string, Tree>>,
-        Node<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
+        Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
+        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
         std::string, std::string>;
     Var var;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<Var, Args &&...>>>
     Tree(Args &&...args): var(std::forward<Args>(args)...) {}
-    friend Node<std::pair<std::string, Tree>>;
-    friend Node<std::pair<Tree, Tree>>;
+    friend Box<std::pair<std::string, Tree>>;
+    friend Box<std::pair<Tree, Tree>>;
     static Tree first(Tree &&fst) {
         if (fst.var.index() == Token::Ini) {
             throw std::runtime_error("empty expression");
@@ -111,20 +111,20 @@ class Tree {
         if (fst.var.index() == Token::Ini) {
             return std::move(snd);
         } else {
-            return Node<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
+            return Box<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         }
     }
     // static Tree parse(Slice &&exp, Tree &&fst = std::nullopt) {
     //     if (auto sym = read(exp); sym.empty()) {
     //         return first(std::move(fst));
     //     } else if (sym[0] == '\\') {
-    //         return build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
+    //         return build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
     //     } else if (sym[0] == '|') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
+    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
     //     } else if (sym[0] == '^') {
-    //         return build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
+    //         return build(std::move(fst), Tree(std::in_place_index<Token::Out>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
     //     } else if (sym[0] == '@') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
+    //         return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
     //     } else {
     //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
     //     }
@@ -133,13 +133,13 @@ class Tree {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
         } else if (sym[0] == '|') {
-            return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
         } else if (sym[0] == '^') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<Token::Out>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
         } else if (sym[0] == '@') {
-            return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Node<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), Tree(std::in_place_index<Token::Out>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
@@ -207,8 +207,8 @@ class Tree {
             } else if (auto ptr = std::get_if<Token::CmpInt>(&fst.var); ptr) {
                 snd.calc();
                 if (auto qtr = std::get_if<Token::Int>(&snd.var); qtr) {
-                    static const auto T = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))));
-                    static const auto F = Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Node<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
+                    static const auto T = Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "T")))));
+                    static const auto F = Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<Token::Fun>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<Token::Par>, "F")))));
                     *this = ptr->first.second(std::move(*qtr), std::move(ptr->second)) ? T : F;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
