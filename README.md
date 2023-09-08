@@ -88,7 +88,7 @@ Examples:
 
 ### Difference between `\PAR EXPR` and `^PAR EXPR`
 
-As mentioned earlier, the parameters of `\PAR EXPR` are lazy-evaluated, while the parameters of `^PAR EXPR` are not eager-evaluated. Usually, we only need to use the former (because it avoids calculating parameters that do not need to be used). However, since in ProjectLambda, if the function is not applied, its internal content will not be calculated, so if you want to construct a tuple (`\o ... ... ...`) and output, then, with `\PAR EXPR` syntax, you will get a long list of raw results:
+As mentioned earlier, the parameter of `\PAR EXPR` is lazy-evaluated, while the parameter of `^PAR EXPR` is eager-evaluated. Usually, we only need to use the former (because it avoids calculating parameters that do not need to be used). However, since in ProjectLambda, if the function is not applied, its internal content will not be calculated, so if you want to construct a tuple (`\o ... ... ...`) and output, then, with `\PAR EXPR` syntax, you will get a long list of raw results:
 
 ```
 :LazyTriple \a \b \c \o $o $a $b $c
@@ -104,7 +104,7 @@ cal &EagerTriple (+ 0 0) (+ 1 1) (+ 2 2)
 # output: \o $o 0 2 4
 ```
 
-In fact, using this syntax, if you have a lazy-evaluated infinite array (of the form `\o $o ... \o $o ... \o $o \o $o ... ...`), you can easily calculate the value of its first n elements through the following function:
+In fact, using this syntax, if you have a lazy-evaluated infinite array (of the form `\o $o ... \o $o ... \o $o \o $o ... ...`), you can easily calculate and output the value of its first n elements through the following function:
 
 ```
 :LazyCons \a \b \o $o $a $b
