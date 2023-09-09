@@ -17,19 +17,39 @@
 #include <Windows.h>
 #elif defined __unix__
 #include <unistd.h>
+#include <signal.h>
 #include <sys/resource.h>
 #endif
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
 #endif
-std::string ps_in;
-std::string ps_res;
-std::string ps_out;
 int *stack_top;
 bool stack_err() {
     int dummy;
     return (char *)stack_top - (char *)&dummy >= STACK_SIZE / 2;
 }
+#if defined _WIN32
+void init_esc() {
+    GetAsyncKeyState(VK_ESCAPE);
+}
+bool check_esc() {
+    return GetAsyncKeyState(VK_ESCAPE) & 0x0001;
+}
+#elif defined __unix__
+bool esc_press;
+void handler(int) {
+    esc_press = 1;
+}
+void init_esc() {
+    esc_press = 0;
+}
+bool check_esc() {
+    return esc_press;
+}
+#endif
+std::string ps_in;
+std::string ps_res;
+std::string ps_out;
 auto read(Slice &exp) {
     auto i = exp.get_beg();
     auto n = exp.get_end();
@@ -167,6 +187,9 @@ class Tree {
         if (stack_err()) {
             throw std::runtime_error("recursion too deep");
         }
+        if (check_esc()) {
+            throw std::runtime_error("keyboard interrupt");
+        }
         if (auto ptv = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **ptv;
             fst.calc();
@@ -263,6 +286,7 @@ class Tree {
 public:
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
+        init_esc();
         res.calc();
         return res;
     }
@@ -332,6 +356,7 @@ int main(int argc, char *argv[]) {
     getrlimit(RLIMIT_STACK, &rlim);
     rlim.rlim_cur = STACK_SIZE;
     setrlimit(RLIMIT_STACK, &rlim);
+    signal(SIGINT, handler);
 #endif
     ps_in = check_stderr && check_stdin ? ">> " : "";
     ps_out = check_stderr && check_stdout ? "=> " : "";

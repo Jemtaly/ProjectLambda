@@ -18,6 +18,10 @@ else ifeq ($(findstring windows-gnu,$(MACHINE)), windows-gnu)
 else
     $(error Unsupported platform: $(MACHINE))
 endif
+ifeq ($(DEBUG), 1)
+    CXXFLAGS += -g -fsanitize=address -fsanitize=undefined
+    VERSION := $(VERSION)-debug
+endif
 ifeq ($(USE_GMP), 1)
     CXXFLAGS += -DUSE_GMP
     LDFLAGS += -lgmp
