@@ -23,33 +23,36 @@
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
 #endif
-int *stack_top;
-bool stack_err() {
-    int dummy;
-    return (char *)stack_top - (char *)&dummy >= STACK_SIZE / 2;
+char *stack_top;
+char *stack_cur;
+void ini_stack() {
+    char dummy;
+    stack_top = &dummy;
+}
+bool chk_stack() {
+    char dummy;
+    stack_cur = &dummy;
+    return stack_top - stack_cur >= STACK_SIZE / 2;
 }
 #if defined _WIN32
-void init_esc() {
+void clr_flag() {
     GetAsyncKeyState(VK_ESCAPE);
 }
-bool check_esc() {
+bool chk_flag() {
     return GetAsyncKeyState(VK_ESCAPE) & 0x0001;
 }
 #elif defined __unix__
-bool esc_press;
-void handler(int) {
-    esc_press = 1;
+bool flag_rec;
+void set_flag(int) {
+    flag_rec = 1;
 }
-void init_esc() {
-    esc_press = 0;
+void clr_flag() {
+    flag_rec = 0;
 }
-bool check_esc() {
-    return esc_press;
+bool chk_flag() {
+    return flag_rec;
 }
 #endif
-std::string ps_in;
-std::string ps_res;
-std::string ps_out;
 auto read(Slice &exp) {
     auto i = exp.get_beg();
     auto n = exp.get_end();
@@ -184,10 +187,10 @@ class Tree {
         }
     }
     void calc() {
-        if (stack_err()) {
-            throw std::runtime_error("recursion too deep");
+        if (chk_stack()) {
+            throw std::runtime_error("recursion limit exceeded");
         }
-        if (check_esc()) {
+        if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
         if (auto ptv = std::get_if<TokenIdx::App>(&token)) {
@@ -286,7 +289,7 @@ class Tree {
 public:
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
-        init_esc();
+        clr_flag();
         res.calc();
         return res;
     }
@@ -339,7 +342,7 @@ public:
     }
 };
 int main(int argc, char *argv[]) {
-    stack_top = &argc;
+    ini_stack();
     bool check_stdin = false;
     bool check_stdout = false;
     bool check_stderr = false;
@@ -356,11 +359,15 @@ int main(int argc, char *argv[]) {
     getrlimit(RLIMIT_STACK, &rlim);
     rlim.rlim_cur = STACK_SIZE;
     setrlimit(RLIMIT_STACK, &rlim);
-    signal(SIGINT, handler);
+    struct sigaction act;
+    act.sa_handler = set_flag;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    sigaction(SIGINT, &act, NULL);
 #endif
-    ps_in = check_stderr && check_stdin ? ">> " : "";
-    ps_out = check_stderr && check_stdout ? "=> " : "";
-    ps_res = check_stderr && check_stdout ? "== " : "";
+    std::string ps_in = check_stderr && check_stdin ? ">> " : "";
+    std::string ps_out = check_stderr && check_stdout ? "=> " : "";
+    std::string ps_res = check_stderr && check_stdout ? "== " : "";
     for (bool end = false; not end;) {
         std::cerr << ps_in;
         Slice exp = Slice::getline(std::cin);

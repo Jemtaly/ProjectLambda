@@ -73,8 +73,8 @@ enum Tree {
     Cmp(Cmpt, String),
     AOI(Oprt, String, BigInt),
     ACI(Cmpt, String, BigInt),
-    LEF(String, Box<Tree>),
-    EEF(String, Box<Tree>),
+    LEF(String, Box<Tree>), // Lazy Evaluation Function
+    EEF(String, Box<Tree>), // Eager Evaluation Function
     App(Box<Tree>, Box<Tree>),
     Arg(Rc<RefCell<(Tree, bool)>>),
     Par(String),
