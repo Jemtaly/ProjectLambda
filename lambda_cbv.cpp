@@ -362,7 +362,7 @@ int main(int argc, char *argv[]) {
     struct sigaction act;
     act.sa_handler = set_flag;
     sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
+    act.sa_flags = 0; // use SA_RESTART to avoid getting EOF when SIGINT is received during input
     sigaction(SIGINT, &act, NULL);
 #endif
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
