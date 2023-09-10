@@ -165,11 +165,15 @@ impl Tree {
             },
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
-                if !*rec {
-                    *shr = mem::replace(shr, Tree::Empty).calculate()?;
-                    *rec = true;
+                if Rc::strong_count(&arg) == 1 {
+                    if !*rec { mem::replace(shr, Tree::Empty).calculate() } else { Ok(mem::replace(shr, Tree::Empty)) }
+                } else {
+                    if !*rec {
+                        *shr = mem::replace(shr, Tree::Empty).calculate()?;
+                        *rec = true;
+                    }
+                    Ok(shr.clone())
                 }
-                Ok(if Rc::strong_count(&arg) == 1 { mem::replace(shr, Tree::Empty) } else { shr.clone() })
             }
             Tree::Par(par) => {
                 Err(format!("unbound variable: ${}", par))

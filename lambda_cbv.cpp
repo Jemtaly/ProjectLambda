@@ -249,14 +249,21 @@ class Tree {
             }
         } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
             auto &[shr, rec] = **parg;
-            if (not rec) {
-                shr.calc();
-                rec = true;
-            }
             if (parg->use_count() == 1) {
-                *this = Tree(std::move(shr));
+                if (not rec) {
+                    *this = Tree(std::move(shr));
+                    TAIL_CALL calc();
+                } else {
+                    *this = Tree(std::move(shr));
+                }
             } else {
-                *this = shr;
+                if (not rec) {
+                    shr.calc();
+                    rec = true;
+                    *this = shr;
+                } else {
+                    *this = shr;
+                }
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
             throw std::runtime_error("unbound variable: $" + *ppar);
