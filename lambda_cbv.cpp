@@ -8,10 +8,10 @@
 #include <unordered_map>
 #include "container.hpp"
 #include "slice.hpp"
-#ifdef USE_GMP
-#include "gmpint.hpp"
-#else
+#ifndef USE_GMP
 #include "strint.hpp"
+#else
+#include "gmpint.hpp"
 #endif
 #if defined _WIN32
 #include <Windows.h>
@@ -22,6 +22,11 @@
 #endif
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
+#endif
+#ifndef __clang__
+#define TAIL_CALL return
+#else
+#define TAIL_CALL __attribute__((musttail)) return
 #endif
 char *stack_top;
 char *stack_cur;
@@ -202,13 +207,13 @@ class Tree {
                 auto &[par, tmp] = **plef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
                 *this = Tree(std::move(tmp));
-                calc();
+                TAIL_CALL calc();
             } else if (auto peef = std::get_if<TokenIdx::EEF>(&fst.token)) {
                 snd.calc();
                 auto &[par, tmp] = **peef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
-                calc();
+                TAIL_CALL calc();
             } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token); pint && (*pint || popr->first != '/' && popr->first != '%')) {
@@ -258,7 +263,7 @@ class Tree {
         } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
             if (auto const &it = map.find(*pglb); it != map.end()) {
                 *this = it->second;
-                calc();
+                TAIL_CALL calc();
             } else {
                 throw std::runtime_error("undefined symbol: &" + *pglb);
             }
