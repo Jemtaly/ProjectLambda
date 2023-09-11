@@ -23,11 +23,6 @@
 #ifndef STACK_SIZE
 #define STACK_SIZE 8388608 // 8 MiB
 #endif
-#ifndef __clang__
-#define TAIL_CALL return
-#else
-#define TAIL_CALL __attribute__((musttail)) return
-#endif
 char *stack_top;
 char *stack_cur;
 void ini_stack() {
@@ -191,6 +186,7 @@ class Tree {
         if (chk_stack()) {
             throw std::runtime_error("recursion limit exceeded");
         }
+    tail_call:
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
@@ -203,13 +199,13 @@ class Tree {
                 auto &[par, tmp] = **plef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
                 *this = Tree(std::move(tmp));
-                TAIL_CALL calc();
+                goto tail_call;
             } else if (auto peef = std::get_if<TokenIdx::EEF>(&fst.token)) {
                 snd.calc();
                 auto &[par, tmp] = **peef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
-                TAIL_CALL calc();
+                goto tail_call;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token); pint && (*pint || popr->first != '/' && popr->first != '%')) {
@@ -248,7 +244,7 @@ class Tree {
             if (parg->use_count() == 1) {
                 if (not rec) {
                     *this = Tree(std::move(shr));
-                    TAIL_CALL calc();
+                    goto tail_call;
                 } else {
                     *this = Tree(std::move(shr));
                 }
