@@ -16,28 +16,29 @@ class StrInt {
         }
     }
 public:
-    static StrInt from_string(std::string const &str) {
-        size_t len = str.size() - (str[0] == '+' || str[0] == '-');
+    static StrInt from_string(std::string_view str) {
+        size_t len = str.size() - (str.front() == '+' || str.front() == '-');
         int8_t *abs = new int8_t[len + 1];
-        if (str[0] == '-') {
+        auto it = str.rbegin();
+        if (str.front() == '-') {
             int8_t d = 10;
-            for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
-                if (str[i] < '0' || str[i] > '9') {
+            for (size_t j = 0; j < len; j++) {
+                if (*it < '0' || *it > '9') {
                     delete[] abs;
                     throw std::invalid_argument("invalid argument");
                 } else {
-                    d = '9' - str[i] + (d == 10);
+                    d = '9' - *it++ + (d == 10);
                     abs[j] = d == 10 ? 0 : d;
                 }
             }
             abs[len] = d == 10 ? 0 : 9;
         } else {
-            for (size_t i = str.size() - 1, j = 0; j < len; i--, j++) {
-                if (str[i] < '0' || str[i] > '9') {
+            for (size_t j = 0; j < len; j++) {
+                if (*it < '0' || *it > '9') {
                     delete[] abs;
                     throw std::invalid_argument("invalid argument");
                 } else {
-                    abs[j] = str[i] - '0';
+                    abs[j] = *it++ - '0';
                 }
             }
             abs[len] = 0;
@@ -46,30 +47,28 @@ public:
     }
     std::string to_string() const {
         char str[len + 3]; // GCC and Clang variable length array extension
-        str[len + 2] = 0;
+        auto it = &str[len + 3];
+        *--it = '\0';
         if (abs[len]) {
             bool flag = true;
-            for (size_t i = 0, j = len + 1; i < len; i++, j--) {
+            for (size_t i = 0; i < len; i++) {
                 int8_t d = '9' - abs[i] + flag;
-                str[j] = (flag = d > '9') ? '0' : d;
+                *--it = (flag = d > '9') ? '0' : d;
             }
             if (flag) {
-                str[1] = '1';
-                str[0] = '-';
-                return str + 0;
+                *--it = '1';
+                *--it = '-';
             } else {
-                str[1] = '-';
-                return str + 1;
+                *--it = '-';
             }
         } else if (len) {
-            for (size_t i = 0, j = len + 1; i < len; i++, j--) {
-                str[j] = '0' + abs[i];
+            for (size_t i = 0; i < len; i++) {
+                *--it = '0' + abs[i];
             }
-            return str + 2;
         } else {
-            str[1] = '0';
-            return str + 1;
+            *--it = '0';
         }
+        return it;
     }
     StrInt(StrInt const &rval):
         len(rval.len), abs(rval.abs), ctr(rval.ctr) {

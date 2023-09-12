@@ -29,6 +29,9 @@ public:
     operator std::string() const {
         return std::string(beg, end);
     }
+    operator std::string_view() const {
+        return std::string_view(beg, end - beg);
+    }
     bool operator==(char const *str) const {
         return std::equal(beg, end, str);
     }
