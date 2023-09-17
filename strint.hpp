@@ -6,7 +6,7 @@ class StrInt {
     size_t len;
     int8_t const *abs;
     size_t *ctr;
-    auto get(size_t i) const {
+    int8_t get(size_t i) const {
         return abs[i < len ? i : len];
     }
     StrInt(size_t rlen, int8_t const *rabs):
@@ -16,29 +16,32 @@ class StrInt {
         }
     }
 public:
-    static StrInt from_string(std::string_view str) {
-        size_t len = str.size() - (str.front() == '+' || str.front() == '-');
+    static StrInt from_string(std::string_view sv) {
+        auto itr = sv.rbegin(), end = sv.rend();
+        if (sv.front() == '+' || sv.front() == '-') {
+            end--;
+        }
+        size_t len = end - itr;
         int8_t *abs = new int8_t[len + 1];
-        auto it = str.rbegin();
-        if (str.front() == '-') {
+        if (sv.front() == '-') {
             int8_t d = 10;
-            for (size_t j = 0; j < len; j++) {
-                if (*it < '0' || *it > '9') {
+            for (size_t j = 0; itr != end; itr++) {
+                if (*itr < '0' || *itr > '9') {
                     delete[] abs;
                     throw std::invalid_argument("invalid argument");
                 } else {
-                    d = '9' - *it++ + (d == 10);
-                    abs[j] = d == 10 ? 0 : d;
+                    d = '9' - *itr + (d == 10);
+                    abs[j++] = d == 10 ? 0 : d;
                 }
             }
             abs[len] = d == 10 ? 0 : 9;
         } else {
-            for (size_t j = 0; j < len; j++) {
-                if (*it < '0' || *it > '9') {
+            for (size_t j = 0; itr != end; itr++) {
+                if (*itr < '0' || *itr > '9') {
                     delete[] abs;
                     throw std::invalid_argument("invalid argument");
                 } else {
-                    abs[j] = *it++ - '0';
+                    abs[j++] = *itr - '0';
                 }
             }
             abs[len] = 0;
@@ -47,28 +50,28 @@ public:
     }
     std::string to_string() const {
         char str[len + 3]; // GCC and Clang variable length array extension
-        auto it = &str[len + 3];
-        *--it = '\0';
+        char *itr = &str[len + 3], *end = &str[len + 2];
+        *--itr = '\0';
         if (abs[len]) {
             bool flag = true;
             for (size_t i = 0; i < len; i++) {
                 int8_t d = '9' - abs[i] + flag;
-                *--it = (flag = d > '9') ? '0' : d;
+                *--itr = (flag = d > '9') ? '0' : d;
             }
             if (flag) {
-                *--it = '1';
-                *--it = '-';
+                *--itr = '1';
+                *--itr = '-';
             } else {
-                *--it = '-';
+                *--itr = '-';
             }
         } else if (len) {
             for (size_t i = 0; i < len; i++) {
-                *--it = '0' + abs[i];
+                *--itr = '0' + abs[i];
             }
         } else {
-            *--it = '0';
+            *--itr = '0';
         }
-        return it;
+        return std::string(itr, end);
     }
     StrInt(StrInt const &rval):
         len(rval.len), abs(rval.abs), ctr(rval.ctr) {
