@@ -1,6 +1,7 @@
 #pragma once
 #include <gmpxx.h>
 #include <utility>
+#include <string>
 class StrInt {
     mpz_class data;
     template <typename... T>
