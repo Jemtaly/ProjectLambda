@@ -49,9 +49,8 @@ public:
         return StrInt(len, abs);
     }
     std::string to_string() const {
-        char str[len + 3]; // GCC and Clang variable length array extension
-        char *itr = &str[len + 3], *end = &str[len + 2];
-        *--itr = '\0';
+        char str[len + 2]; // GCC and Clang variable length array extension
+        char *itr = &str[len + 2], *end = &str[len + 2];
         if (abs[len]) {
             bool flag = true;
             for (size_t i = 0; i < len; i++) {
