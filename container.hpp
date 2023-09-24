@@ -1,5 +1,6 @@
 #pragma once
 #include <utility>
+#include <cassert>
 // The difference between Nxt and Box is that Nxt can be initialized or
 // assigned to nullptr, while Box can only be null after being moved.
 // Besides, the data in const Nxt can still be modified, while the data
@@ -33,11 +34,10 @@ public:
         return *this;
     }
     Nxt &operator=(Nxt &&other) {
-        if (this != &other) {
-            delete data;
-            data = other.data;
-            other.data = nullptr;
-        }
+        assert(this != &other); // self-assignment is not allowed
+        delete data;
+        data = other.data;
+        other.data = nullptr;
         return *this;
     }
     ~Nxt() {
@@ -77,11 +77,10 @@ public:
         return *this;
     }
     Box &operator=(Box &&other) {
-        if (this != &other) {
-            delete data;
-            data = other.data;
-            other.data = nullptr;
-        }
+        assert(this != &other); // self-assignment is not allowed
+        delete data;
+        data = other.data;
+        other.data = nullptr;
         return *this;
     }
     ~Box() {

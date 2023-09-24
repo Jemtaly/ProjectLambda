@@ -11,7 +11,7 @@ ifeq ($(findstring linux,$(MACHINE)), linux)
     LDFLAGS = -Wl,-z,stack-size=$(STACK_SIZE)
 else ifeq ($(findstring windows-msvc,$(MACHINE)), windows-msvc)
     EXE_EXT = .exe
-    LDFLAGS = -Wl,/STACK:$(STACK_SIZE) -lUser32
+    LDFLAGS = -Wl,/STACK:$(STACK_SIZE)
 else ifeq ($(findstring windows-gnu,$(MACHINE)), windows-gnu)
     EXE_EXT = .exe
     LDFLAGS = -Wl,--stack,$(STACK_SIZE)

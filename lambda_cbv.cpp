@@ -244,22 +244,19 @@ class Tree {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }
         } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
-            auto &[shr, rec] = **parg;
+            auto &shr = (*parg)->first;
+            auto rec = (*parg)->second;
             if (parg->use_count() == 1) {
+                *this = Tree(std::move(shr));
                 if (not rec) {
-                    *this = Tree(std::move(shr));
                     goto tail_call;
-                } else {
-                    *this = Tree(std::move(shr));
                 }
             } else {
                 if (not rec) {
                     shr.calc();
                     rec = true;
-                    *this = shr;
-                } else {
-                    *this = shr;
                 }
+                *this = shr;
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
             throw std::runtime_error("unbound variable: $" + *ppar);
@@ -338,8 +335,7 @@ public:
             auto s = fst.translate(lb && !lb, 1) + " " + snd.translate(1, rb && !lb);
             return lb ? "(" + s + ")" : s;
         } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
-            auto &[shr, rec] = **parg;
-            return shr.translate(lb, rb);
+            return (*parg)->first.translate(lb, rb);
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
             return "$" + *ppar;
         } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
