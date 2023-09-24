@@ -14,7 +14,7 @@ else ifeq ($(findstring windows-msvc,$(MACHINE)), windows-msvc)
     LDFLAGS = -Wl,/STACK:$(STACK_SIZE)
 else ifeq ($(findstring windows-gnu,$(MACHINE)), windows-gnu)
     EXE_EXT = .exe
-    LDFLAGS = -Wl,--stack,$(STACK_SIZE)
+    LDFLAGS = -Wl,--stack,$(STACK_SIZE) -lUser32
 else
     $(error Unsupported platform: $(MACHINE))
 endif

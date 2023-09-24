@@ -35,13 +35,15 @@ def test():
     ap.add_argument('bf', type = argparse.FileType('r'))
     ap.add_argument('-i', '--input', type = argparse.FileType('r'), default = sys.stdin)
     ap.add_argument('-o', '--output', type = argparse.FileType('w'), default = sys.stdout)
-    ap.add_argument('-c', '--choice', choices = ['cbv', 'cbn'], required = True)
+    eg = ap.add_mutually_exclusive_group(required = True)
+    eg.add_argument('-v', '--cbv', action = 'store_const', const = 'cbv', dest = 'choice')
+    eg.add_argument('-n', '--cbn', action = 'store_const', const = 'cbn', dest = 'choice')
     args = ap.parse_args()
     pf = {'cbv': '&', 'cbn': '$'}[args.choice]
     l = open(f'bf_{args.choice}.l').read()
     l += f':fun {bf2l(args.bf.read(), pf)}\n'
     l += f':input {enc(args.input.read())}\n'
     l += f'\ncal {pf}run {pf}fun {pf}input\n'
-    args.output.write(dec(subprocess.check_output([f'lambda_{args.choice}'], input = l.encode()).decode()))
+    args.output.write(dec(subprocess.check_output([f'./lambda_{args.choice}'], input = l.encode()).decode()))
 if __name__ == '__main__':
     test()
