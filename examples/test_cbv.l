@@ -20,7 +20,7 @@
 :map \f \l $l \a \d &con ($f $a) (&map $f $d)
 :scn \f \x \l $l \a \d &con $x (&scn $f ($f $x $a) $d)
 :flt \c \l $l \a \d $c $a (&con $a (&flt $c $d)) (&flt $c $d)
-:zip \f \l \m $l \a \b $m \c \d &con ($f $a $c) (&zip $f $b $d)
+:zpw \f \l \m $l \a \b $m \c \d &con ($f $a $c) (&zpw $f $b $d)
 
 # Non-lazy list constructor
 :CON ^a ^b \o $o $a $b
@@ -33,7 +33,7 @@
 cal &EVL 1024 $ | &fib 0 1
 :fib \a \b &Y \l &con $a (&scn + $b $l)
 cal &EVL 1024 $ | &fib 0 1
-:fib \a \b &Y \l &con $a (&con $b (&zip + $l (&cdr $l)))
+:fib \a \b &Y \l &con $a (&con $b (&zpw + $l (&cdr $l)))
 cal &EVL 1024 $ | &fib 0 1
 
 # 2D space vector operations (Non-lazy construct, Add, Multiply)
