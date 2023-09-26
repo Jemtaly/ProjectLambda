@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include "container.hpp"
 #include "slice.hpp"
 #ifndef USE_GMP
@@ -104,20 +105,20 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 };
 class Tree {
     enum TokenIdx: std::size_t {
-        Ini, Nil, Int,
+        Ini, Par,
+        Nil, Int,
         Opr, AOI,
         Cmp, ACI,
         LEF, EEF, // Lazy/Eager-Evaluation Function
-        App, Arg,
-        Par, Glb,
+        App, Arg, Glb,
     };
     using TokenVar = std::variant<
-        std::nullopt_t, std::monostate, StrInt,
+        std::nullopt_t, std::string,
+        std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
-        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string, std::string>;
+        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>, std::string>;
     TokenVar token;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
     Tree(Args &&...args): token(std::forward<Args>(args)...) {}
@@ -258,8 +259,6 @@ class Tree {
                 }
                 *this = shr;
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
-            throw std::runtime_error("unbound variable: $" + *ppar);
         } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
             if (auto const &it = map.find(*pglb); it != map.end()) {
                 *this = it->second;
@@ -290,16 +289,50 @@ class Tree {
             }
         }
     }
+    void analyze(std::unordered_set<std::string> &set) const {
+        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
+            auto &[fst, snd] = **papp;
+            fst.analyze(set);
+            snd.analyze(set);
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
+            auto &[par, tmp] = **plef;
+            if (auto const &it = set.find(par); it != set.end()) {
+                tmp.analyze(set);
+            } else {
+                auto jt = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(jt);
+            }
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
+            auto &[par, tmp] = **peef;
+            if (auto const &it = set.find(par); it != set.end()) {
+                tmp.analyze(set);
+            } else {
+                auto jt = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(jt);
+            }
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
+            if (auto const &it = set.find(*ppar); it == set.end()) {
+                throw std::runtime_error("unbound variable: $" + *ppar);
+            }
+        }
+    }
     static inline std::unordered_map<std::string, Tree> map;
 public:
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
+        std::unordered_set<std::string> set;
+        res.analyze(set);
         clr_flag();
         res.calc();
         return res;
     }
     static void def(Slice &&exp, std::string const &glb) {
-        map.insert_or_assign(glb, parse(std::move(exp)));
+        std::unordered_set<std::string> set;
+        auto res = parse(std::move(exp));
+        res.analyze(set);
+        map.insert_or_assign(glb, std::move(res));
     }
     static auto const &dir() {
         return map;
