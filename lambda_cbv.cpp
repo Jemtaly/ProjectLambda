@@ -106,7 +106,7 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 class Tree {
     enum TokenIdx: std::size_t {
         Ini, Par,
-        Nil, Int,
+        Nil, Chk, Int,
         Opr, AOI,
         Cmp, ACI,
         LEF, EEF, // Lazy/Eager-Evaluation Function
@@ -114,7 +114,7 @@ class Tree {
     };
     using TokenVar = std::variant<
         std::nullopt_t, std::string,
-        std::monostate, StrInt,
+        std::monostate, std::monostate, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
@@ -177,6 +177,8 @@ class Tree {
             return Tree(std::in_place_index<TokenIdx::Glb>, sym(1, 0));
         } else if (sym.size() == 3 && sym == "...") {
             return Tree(std::in_place_index<TokenIdx::Nil>);
+        } else if (sym.size() == 1 && sym == "?") {
+            return Tree(std::in_place_index<TokenIdx::Chk>);
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
             return Tree(std::in_place_index<TokenIdx::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
@@ -188,6 +190,8 @@ class Tree {
         }
     }
     void calc() {
+        static const auto T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
+        static const auto F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
         if (chk_stack()) {
             throw std::runtime_error("recursion limit exceeded");
         }
@@ -195,11 +199,14 @@ class Tree {
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
-        if (auto ptv = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **ptv;
+        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
+            auto &[fst, snd] = **papp;
             fst.calc();
             if (auto pnil = std::get_if<TokenIdx::Nil>(&fst.token)) {
                 token.emplace<TokenIdx::Nil>();
+            } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
+                snd.calc();
+                *this = snd.token.index() == TokenIdx::Nil ? F : T;
             } else if (auto plef = std::get_if<TokenIdx::LEF>(&fst.token)) {
                 auto &[par, tmp] = **plef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
@@ -215,6 +222,8 @@ class Tree {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token); pint && (*pint || popr->first != '/' && popr->first != '%')) {
                     token = std::make_pair(std::move(*popr), std::move(*pint));
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
+                    token.emplace<TokenIdx::Nil>();
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
@@ -222,6 +231,8 @@ class Tree {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
                     token = std::make_pair(std::move(*pcmp), std::move(*pint));
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
+                    token.emplace<TokenIdx::Nil>();
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
@@ -229,15 +240,17 @@ class Tree {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
                     token = paoi->first.second(std::move(*pint), std::move(paoi->second));
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
+                    token.emplace<TokenIdx::Nil>();
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
             } else if (auto paci = std::get_if<TokenIdx::ACI>(&fst.token)) {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
-                    static const auto T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
-                    static const auto F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
                     *this = paci->first.second(std::move(*pint), std::move(paci->second)) ? T : F;
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
+                    token.emplace<TokenIdx::Nil>();
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
@@ -343,6 +356,8 @@ public:
     std::string translate(bool lb = 0, bool rb = 0) const {
         if (auto pnil = std::get_if<TokenIdx::Nil>(&token)) {
             return "...";
+        } else if (auto pchk = std::get_if<TokenIdx::Chk>(&token)) {
+            return "?";
         } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
             auto &[par, tmp] = **plef;
             auto s = "\\" + par + " " + tmp.translate(0, rb && !rb);
