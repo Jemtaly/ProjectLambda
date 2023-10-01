@@ -26,7 +26,7 @@
 #endif
 char *stack_top;
 char *stack_cur;
-void Und_stack() {
+void ini_stack() {
     char dummy;
     stack_top = &dummy;
 }
@@ -394,7 +394,7 @@ public:
     }
 };
 int main(int argc, char *argv[]) {
-    Und_stack();
+    ini_stack();
     bool check_stdin = false;
     bool check_stdout = false;
     bool check_stderr = false;
