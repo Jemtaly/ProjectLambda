@@ -26,7 +26,7 @@
 #endif
 char *stack_top;
 char *stack_cur;
-void ini_stack() {
+void Und_stack() {
     char dummy;
     stack_top = &dummy;
 }
@@ -105,7 +105,7 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 };
 class Tree {
     enum TokenIdx: std::size_t {
-        Ini, Par,
+        Und, Par,
         Nil, Chk, Int,
         Opr, AOI,
         Cmp, ACI,
@@ -125,14 +125,14 @@ class Tree {
     friend Box<std::pair<std::string, Tree>>;
     friend Box<std::pair<Tree, Tree>>;
     static Tree first(Tree &&fst) {
-        if (fst.token.index() == TokenIdx::Ini) {
+        if (fst.token.index() == TokenIdx::Und) {
             throw std::runtime_error("empty expression");
         } else {
             return std::move(fst);
         }
     }
     static Tree build(Tree &&fst, Tree &&snd) {
-        if (fst.token.index() == TokenIdx::Ini) {
+        if (fst.token.index() == TokenIdx::Und) {
             return std::move(snd);
         } else {
             return Box<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
@@ -394,7 +394,7 @@ public:
     }
 };
 int main(int argc, char *argv[]) {
-    ini_stack();
+    Und_stack();
     bool check_stdin = false;
     bool check_stdout = false;
     bool check_stderr = false;

@@ -1,51 +1,51 @@
 #pragma once
 #include <utility>
 #include <cassert>
-// The difference between Nxt and Box is that Nxt can be initialized or
+// The difference between Opt and Box is that Opt can be initialized or
 // assigned to nullptr, while Box can only be null after being moved.
-// Besides, the data in const Nxt can still be modified, while the data
+// Besides, the data in const Opt can still be modified, while the data
 // in const Box cannot be modified.
-// Both Nxt and Box can be copied and moved. The data in them will also
+// Both Opt and Box can be copied and moved. The data in them will also
 // be copied when they are copied.
 template <typename T>
-class Nxt {
+class Opt {
     T *data;
-    Nxt(T *data):
+    Opt(T *data):
         data(data) {}
 public:
-    Nxt(std::nullptr_t):
+    Opt(std::nullptr_t):
         data(nullptr) {}
-    Nxt(Nxt const &other):
+    Opt(Opt const &other):
         data(other.data ? new T(*other.data) : nullptr) {}
-    Nxt(Nxt &&other):
+    Opt(Opt &&other):
         data(other.data) {
         other.data = nullptr;
     }
-    Nxt &operator=(std::nullptr_t) {
+    Opt &operator=(std::nullptr_t) {
         delete data;
         data = nullptr;
         return *this;
     }
-    Nxt &operator=(Nxt const &other) {
+    Opt &operator=(Opt const &other) {
         if (this != &other) {
             delete data;
             data = other.data ? new T(*other.data) : nullptr;
         }
         return *this;
     }
-    Nxt &operator=(Nxt &&other) {
+    Opt &operator=(Opt &&other) {
         assert(this != &other); // self-assignment is not allowed
         delete data;
         data = other.data;
         other.data = nullptr;
         return *this;
     }
-    ~Nxt() {
+    ~Opt() {
         delete data;
     }
     template <typename... Args>
-    static Nxt make(Args &&...args) {
-        return Nxt(new T(std::forward<Args>(args)...));
+    static Opt make(Args &&...args) {
+        return Opt(new T(std::forward<Args>(args)...));
     }
     T &operator*() const & {
         return *data;

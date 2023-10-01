@@ -23,31 +23,31 @@
 :zpw \f \l \m $l \a \b $m \c \d &con ($f $a $c) (&zpw $f $b $d)
 
 # Non-lazy list constructor
-:CON ^a ^b \o $o $a $b
+:Con ^a ^b \o $o $a $b
 
 # Evaluate the first n elements of a list
-:EVL \n \l = 0 $n ... ($l \a \d &CON $a (&EVL (- 1 $n) $d))
+:Evl \n \l = 0 $n ... ($l \a \d &Con $a (&Evl (- 1 $n) $d))
 
 # Three different implementations of the Fibonacci sequence
 :fib \a \b &con $a (&fib $b (+ $a $b))
-cal &EVL 1024 $ | &fib 0 1
+cal &Evl 1024 $ | &fib 0 1
 :fib \a \b &Y \l &con $a (&scn + $b $l)
-cal &EVL 1024 $ | &fib 0 1
+cal &Evl 1024 $ | &fib 0 1
 :fib \a \b &Y \l &con $a (&con $b (&zpw + $l (&cdr $l)))
-cal &EVL 1024 $ | &fib 0 1
+cal &Evl 1024 $ | &fib 0 1
 
 # 2D space vector operations (Non-lazy construct, Add, Multiply)
-:VEC ^x ^y \o $o $x $y
-:add \u \v $u \a \b $v \c \d &VEC (+ $a $c) (+ $b $d)
-:mul \u \v $u \a \b $v \c \d &VEC (- (* $b $d) (* $a $c)) (+ (* $a $d) (* $b $c))
+:Vec ^x ^y \o $o $x $y
+:add \u \v $u \a \b $v \c \d &Vec (+ $a $c) (+ $b $d)
+:mul \u \v $u \a \b $v \c \d &Vec (- (* $b $d) (* $a $c)) (+ (* $a $d) (* $b $c))
 
 # Regular paper folding sequence
-:lft &VEC 0 (- 1 0)
-:rgt &VEC 0 (+ 1 0)
+:lft &Vec 0 (- 1 0)
+:rgt &Vec 0 (+ 1 0)
 :ins \r &con &lft ($r \a \p &con $a (&con &rgt ($p \b \q &con $b (&ins $q))))
 :rpf &ins &rpf
 
 # Generate first 1024 points on the dragon curve from the regular paper folding sequence
-:dir &scn &mul (&VEC 1 0) &rpf
-:pos &scn &add (&VEC 0 0) &dir
-cal &EVL 1024 &pos
+:dir &scn &mul (&Vec 1 0) &rpf
+:pos &scn &add (&Vec 0 0) &dir
+cal &Evl 1024 &pos

@@ -66,7 +66,7 @@ static CMPS: [(&str, Cmpt); 3] = [
 ];
 #[derive(Clone)]
 enum Tree {
-    Empty,
+    Undefined,
     Ellipsis,
     Int(BigInt),
     Opr(Oprt, String),
@@ -83,13 +83,13 @@ enum Tree {
 impl Tree {
     fn first(fst: Tree) -> Result<Tree, String> {
         match fst {
-            Tree::Empty => Err("empty expression".to_string()),
+            Tree::Undefined => Err("Undefined expression".to_string()),
             _ => Ok(fst),
         }
     }
     fn build(fst: Tree, snd: Tree) -> Result<Tree, String> {
         match fst {
-            Tree::Empty => Ok(snd),
+            Tree::Undefined => Ok(snd),
             _ => Ok(Tree::App(Box::new(fst), Box::new(snd))),
         }
     }
@@ -98,24 +98,24 @@ impl Tree {
         if sym.is_empty() {
             Self::build(fun, Self::first(fst)?)
         } else if sym.starts_with('\\') {
-            let tmp = Tree::LEF(sym[1..].to_string(), Box::new(Self::parse(rest, Tree::Empty, Tree::Empty)?));
+            let tmp = Tree::LEF(sym[1..].to_string(), Box::new(Self::parse(rest, Tree::Undefined, Tree::Undefined)?));
             Self::build(fun, Self::build(fst, tmp)?)
         } else if sym.starts_with('|') {
             let tmp = Tree::LEF(sym[1..].to_string(), Box::new(Self::build(fun, Self::first(fst)?)?));
-            Self::parse(rest, tmp, Tree::Empty)
+            Self::parse(rest, tmp, Tree::Undefined)
         } else if sym.starts_with('^') {
-            let tmp = Tree::EEF(sym[1..].to_string(), Box::new(Self::parse(rest, Tree::Empty, Tree::Empty)?));
+            let tmp = Tree::EEF(sym[1..].to_string(), Box::new(Self::parse(rest, Tree::Undefined, Tree::Undefined)?));
             Self::build(fun, Self::build(fst, tmp)?)
         } else if sym.starts_with('@') {
             let tmp = Tree::EEF(sym[1..].to_string(), Box::new(Self::build(fun, Self::first(fst)?)?));
-            Self::parse(rest, tmp, Tree::Empty)
+            Self::parse(rest, tmp, Tree::Undefined)
         } else {
             Self::parse(rest, fun, Self::build(fst, Self::lex(sym)?)?)
         }
     }
     fn lex(sym: &str) -> Result<Tree, String> {
         if sym.starts_with('(') && sym.ends_with(')') {
-            Self::parse(&sym[1..sym.len() - 1], Tree::Empty, Tree::Empty)
+            Self::parse(&sym[1..sym.len() - 1], Tree::Undefined, Tree::Undefined)
         } else if sym.starts_with('$') {
             Ok(Tree::Par(sym[1..].to_string()))
         } else if sym.starts_with('&') {
@@ -169,10 +169,10 @@ impl Tree {
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
                 if Rc::strong_count(&arg) == 1 {
-                    if !*rec { mem::replace(shr, Tree::Empty).calculate(map) } else { Ok(mem::replace(shr, Tree::Empty)) }
+                    if !*rec { mem::replace(shr, Tree::Undefined).calculate(map) } else { Ok(mem::replace(shr, Tree::Undefined)) }
                 } else {
                     if !*rec {
-                        *shr = mem::replace(shr, Tree::Empty).calculate(map)?;
+                        *shr = mem::replace(shr, Tree::Undefined).calculate(map)?;
                         *rec = true;
                     }
                     Ok(shr.clone())
@@ -250,11 +250,11 @@ fn process(input: String, map: &mut HashMap<String, Tree>) -> Result<(), String>
     if cmd.is_empty() || cmd == "#" {
         Ok(())
     } else if cmd.starts_with(':') {
-        let tmp = Tree::parse(exp, Tree::Empty, Tree::Empty)?;
+        let tmp = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?;
         map.insert(cmd[1..].to_string(), tmp);
         Ok(())
     } else if cmd == "cal" {
-        let res = Tree::parse(exp, Tree::Empty, Tree::Empty)?.calculate(map)?;
+        let res = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?.calculate(map)?;
         eprint!("{}", *PS_RES);
         println!("{}", res.translate(false, false));
         Ok(())
