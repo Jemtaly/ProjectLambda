@@ -23,10 +23,11 @@
 :zpw \f \l \m $l \a \b $m \c \d &con ($f $a $c) (&zpw $f $b $d)
 
 # Non-lazy list constructor
+:Nil ...
 :Con ^a ^b \o $o $a $b
 
 # Evaluate the first n elements of a list
-:Evl \n \l = 0 $n ... ($l \a \d &Con $a (&Evl (- 1 $n) $d))
+:Evl \n \l = 0 $n &Nil ($l \a \d &Con $a (&Evl (- 1 $n) $d))
 
 # Three different implementations of the Fibonacci sequence
 :fib \a \b &con $a (&fib $b (+ $a $b))

@@ -17,16 +17,17 @@
 :car \l $l \a \_ $a
 :cdr \l $l \_ \d $d
 :drp $Y \z \n \l = 0 $n $l ($l \_ \d $z (- 1 $n) $d)
-:map $Y \z \f \l $l \a \d $con ($f $a) ($z $f $d)
-:scn $Y \z \f \x \l $l \a \d $con $x ($z $f ($f $x $a) $d)
-:flt $Y \z \c \l $l \a \d $c $a ($con $a ($z $c $d)) ($z $c $d)
-:zpw $Y \z \f \l \m $l \a \b $m \c \d $con ($f $a $c) ($z $f $b $d)
+:map \f $Y \z \l $l \a \d $con ($f $a) ($z $d)
+:scn \f $Y \z \x \l $l \a \d $con $x ($z ($f $x $a) $d)
+:flt \c $Y \z \l $l \a \d $c $a ($con $a ($z $d)) ($z $d)
+:zpw \f $Y \z \l \m $l \a \b $m \c \d $con ($f $a $c) ($z $b $d)
 
 # Non-lazy list constructor
+:Nil ...
 :Con ^a ^b \o $o $a $b
 
 # Evaluate the first n elements of a list
-:Evl $Y \z \n \l = 0 $n ... ($l \a \d $Con $a ($z (- 1 $n) $d))
+:Evl $Y \z \n \l = 0 $n $Nil ($l \a \d $Con $a ($z (- 1 $n) $d))
 
 # Three different implementations of the Fibonacci sequence
 :fib $Y \z \a \b $con $a ($z $b (+ $a $b))
