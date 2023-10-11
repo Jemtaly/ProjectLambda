@@ -106,7 +106,8 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 class Tree {
     enum TokenIdx: std::size_t {
         Und, Par,
-        Nil, Chk, Int,
+        Nil, Chk,
+        Int,
         Opr, AOI,
         Cmp, ACI,
         LEF, EEF, // Lazy/Eager-Evaluation Function
@@ -114,7 +115,8 @@ class Tree {
     };
     using TokenVar = std::variant<
         std::nullopt_t, std::string,
-        std::monostate, std::monostate, StrInt,
+        std::monostate, std::monostate,
+        StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,

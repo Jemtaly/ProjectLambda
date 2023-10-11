@@ -7,7 +7,6 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include "container.hpp"
 #include "slice.hpp"
 #ifndef USE_GMP
 #include "strint.hpp"
@@ -105,67 +104,49 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 };
 class Tree {
     enum TokenIdx: std::size_t {
-        Und, Par,
         Nil, Chk,
-        Int,
+        Par, Int,
         Opr, AOI,
         Cmp, ACI,
         LEF, EEF, // Lazy/Eager-Evaluation Function
-        App, Arg,
+        App,
     };
     using TokenVar = std::variant<
-        std::nullopt_t, std::string,
-        std::monostate, std::monostate,
-        StrInt,
+        std::monostate, std::monostate, std::string, StrInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
-        Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
-        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>>;
-    TokenVar token;
-    template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
-    Tree(Args &&...args): token(std::forward<Args>(args)...) {}
-    friend Box<std::pair<std::string, Tree>>;
-    friend Box<std::pair<Tree, Tree>>;
+        std::pair<std::string, Tree>, std::pair<std::string, Tree>,
+        std::pair<Tree, Tree>>;
+    std::shared_ptr<TokenVar> sp;
+    bool lb;
+    Tree(TokenVar *ptr): sp(ptr), lb(0) {}
+    friend std::pair<std::string, Tree>;
+    friend std::pair<Tree, Tree>;
     static Tree first(Tree &&fst) {
-        if (fst.token.index() == TokenIdx::Und) {
+        if (fst.sp == nullptr) {
             throw std::runtime_error("empty expression");
         } else {
             return std::move(fst);
         }
     }
     static Tree build(Tree &&fst, Tree &&snd) {
-        if (fst.token.index() == TokenIdx::Und) {
+        if (fst.sp == nullptr) {
             return std::move(snd);
         } else {
-            return Box<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
+            return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(fst), std::move(snd));
         }
     }
-    // static Tree parse(Slice &&exp, Tree &&fst = std::nullopt) {
-    //     if (auto sym = read(exp); sym.empty()) {
-    //         return first(std::move(fst));
-    //     } else if (sym[0] == '\\') {
-    //         return build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
-    //     } else if (sym[0] == '|') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
-    //     } else if (sym[0] == '^') {
-    //         return build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
-    //     } else if (sym[0] == '@') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
-    //     } else {
-    //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
-    //     }
-    // }
-    static Tree parse(Slice &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
+    static Tree parse(Slice &&exp, Tree &&fun = nullptr, Tree &&fst = nullptr) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym[0] == '\\') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym(1, 0), parse(std::move(exp)))));
         } else if (sym[0] == '|') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym(1, 0), build(std::move(fun), first(std::move(fst)))));
         } else if (sym[0] == '^') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym(1, 0), parse(std::move(exp)))));
         } else if (sym[0] == '@') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym(1, 0), build(std::move(fun), first(std::move(fst)))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
@@ -174,134 +155,134 @@ class Tree {
         if (sym[0] == '(' && sym[-1] == ')') {
             return parse(sym(1, -1));
         } else if (sym[0] == '$') {
-            return Tree(std::in_place_index<TokenIdx::Par>, sym(1, 0));
+            return new TokenVar(std::in_place_index<TokenIdx::Par>, sym(1, 0));
         } else if (sym.size() == 3 && sym == "...") {
-            return Tree(std::in_place_index<TokenIdx::Nil>);
+            return new TokenVar(std::in_place_index<TokenIdx::Nil>);
         } else if (sym.size() == 1 && sym == "?") {
-            return Tree(std::in_place_index<TokenIdx::Chk>);
+            return new TokenVar(std::in_place_index<TokenIdx::Chk>);
         } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
-            return Tree(std::in_place_index<TokenIdx::Opr>, *o);
+            return new TokenVar(std::in_place_index<TokenIdx::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
-            return Tree(std::in_place_index<TokenIdx::Cmp>, *c);
+            return new TokenVar(std::in_place_index<TokenIdx::Cmp>, *c);
         } else try {
-            return Tree(std::in_place_index<TokenIdx::Int>, StrInt::from_string(sym));
+            return new TokenVar(std::in_place_index<TokenIdx::Int>, StrInt::from_string(sym));
         } catch (...) {
             throw std::runtime_error("invalid symbol: " + std::string(sym));
         }
     }
     void calc() {
-        static const auto T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
-        static const auto F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
+        static const auto T = Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "T", Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "F", Tree(new TokenVar(std::in_place_index<TokenIdx::Par>, "T"))))));
+        static const auto F = Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "T", Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "F", Tree(new TokenVar(std::in_place_index<TokenIdx::Par>, "F"))))));
+        static const auto N = Tree(new TokenVar(std::in_place_index<TokenIdx::Nil>));
         if (chk_stack()) {
             throw std::runtime_error("recursion limit exceeded");
         }
-    tail_call:
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
-        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **papp;
+        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+            auto &[fst, snd] = *papp;
             fst.calc();
-            if (auto pnil = std::get_if<TokenIdx::Nil>(&fst.token)) {
-                token.emplace<TokenIdx::Nil>();
-            } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
+            if (auto pnil = std::get_if<TokenIdx::Nil>(fst.sp.get())) {
+                *sp = *N.sp;
+            } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.sp.get())) {
                 snd.calc();
-                *this = snd.token.index() == TokenIdx::Nil ? F : T;
-            } else if (auto plef = std::get_if<TokenIdx::LEF>(&fst.token)) {
-                auto &[par, tmp] = **plef;
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
-                *this = Tree(std::move(tmp));
-                goto tail_call;
-            } else if (auto peef = std::get_if<TokenIdx::EEF>(&fst.token)) {
+                *sp = snd.sp->index() == TokenIdx::Nil ? *F.sp : *T.sp;
+            } else if (auto plef = std::get_if<TokenIdx::LEF>(fst.sp.get())) {
+                auto &[par, tmp] = *plef;
+                snd.lb = 1;
+                auto t_s = tmp.substitute(snd, par);
+                t_s.calc();
+                *sp = *t_s.sp;
+            } else if (auto peef = std::get_if<TokenIdx::EEF>(fst.sp.get())) {
                 snd.calc();
-                auto &[par, tmp] = **peef;
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
-                *this = Tree(std::move(tmp));
-                goto tail_call;
-            } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
+                auto &[par, tmp] = *peef;
+                snd.lb = 1;
+                auto t_s = tmp.substitute(snd, par);
+                t_s.calc();
+                *sp = *t_s.sp;
+            } else if (auto popr = std::get_if<TokenIdx::Opr>(fst.sp.get())) {
                 snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(&snd.token); pint && (*pint || popr->first != '/' && popr->first != '%')) {
-                    token = std::make_pair(std::move(*popr), std::move(*pint));
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
-                    token.emplace<TokenIdx::Nil>();
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get()); pint && (*pint || popr->first != '/' && popr->first != '%')) {
+                    *sp = std::make_pair(*popr, *pint);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
+                    *sp = *N.sp;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(&fst.token)) {
+            } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(fst.sp.get())) {
                 snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
-                    token = std::make_pair(std::move(*pcmp), std::move(*pint));
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
-                    token.emplace<TokenIdx::Nil>();
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
+                    *sp = std::make_pair(*pcmp, *pint);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
+                    *sp = *N.sp;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto paoi = std::get_if<TokenIdx::AOI>(&fst.token)) {
+            } else if (auto paoi = std::get_if<TokenIdx::AOI>(fst.sp.get())) {
                 snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
-                    token = paoi->first.second(std::move(*pint), std::move(paoi->second));
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
-                    token.emplace<TokenIdx::Nil>();
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
+                    *sp = paoi->first.second(*pint, paoi->second);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
+                    *sp = *N.sp;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto paci = std::get_if<TokenIdx::ACI>(&fst.token)) {
+            } else if (auto paci = std::get_if<TokenIdx::ACI>(fst.sp.get())) {
                 snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
-                    *this = paci->first.second(std::move(*pint), std::move(paci->second)) ? T : F;
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
-                    token.emplace<TokenIdx::Nil>();
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
+                    *sp = paci->first.second(*pint, paci->second) ? *T.sp : *F.sp;
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
+                    *sp = *N.sp;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
             } else {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }
-        } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
-            auto &shr = (*parg)->first;
-            auto rec = (*parg)->second;
-            if (parg->use_count() == 1) {
-                *this = Tree(std::move(shr));
-                if (not rec) {
-                    goto tail_call;
-                }
-            } else {
-                if (not rec) {
-                    shr.calc();
-                    rec = true;
-                }
-                *this = shr;
-            }
         }
     }
-    void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &tar) {
-        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **papp;
-            fst.substitute(arg, tar);
-            snd.substitute(arg, tar);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
-            if (par != tar) {
-                tmp.substitute(arg, tar);
+    Tree substitute(Tree const &arg, std::string const &tar) {
+        if (lb) {
+            return *this;
+        }
+        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+            auto &[fst, snd] = *papp;
+            auto f_s = fst.substitute(arg, tar);
+            auto s_s = snd.substitute(arg, tar);
+            if (f_s.sp != fst.sp || s_s.sp != snd.sp) {
+                return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(f_s), std::move(s_s));
             }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+            auto &[par, tmp] = *plef;
             if (par != tar) {
-                tmp.substitute(arg, tar);
+                auto t_s = tmp.substitute(arg, tar);
+                if (t_s.sp != tmp.sp) {
+                    return new TokenVar(std::in_place_index<TokenIdx::LEF>, par, std::move(t_s));
+                }
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+            auto &[par, tmp] = *peef;
+            if (par != tar) {
+                auto t_s = tmp.substitute(arg, tar);
+                if (t_s.sp != tmp.sp) {
+                    return new TokenVar(std::in_place_index<TokenIdx::EEF>, par, std::move(t_s));
+                }
+            }
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
             if (*ppar == tar) {
-                token.emplace<TokenIdx::Arg>(arg);
+                return arg;
             }
         }
+        return *this;
     }
-    void substitute(std::unordered_map<std::string, std::shared_ptr<std::pair<Tree, bool>>> &map) {
-        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **papp;
+    void substitute(std::unordered_map<std::string, Tree> &map) {
+        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+            auto &[fst, snd] = *papp;
             fst.substitute(map);
             snd.substitute(map);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+            auto &[par, tmp] = *plef;
             if (auto const &it = map.find(par); it != map.end()) {
                 auto sav = std::move(it->second);
                 tmp.substitute(map);
@@ -309,8 +290,8 @@ class Tree {
             } else {
                 tmp.substitute(map);
             }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+            auto &[par, tmp] = *peef;
             if (auto const &it = map.find(par); it != map.end()) {
                 auto sav = std::move(it->second);
                 tmp.substitute(map);
@@ -318,19 +299,19 @@ class Tree {
             } else {
                 tmp.substitute(map);
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
-            if (auto const &it = map.find(*ppar); it != map.end() && it->second) {
-                token.emplace<TokenIdx::Arg>(it->second);
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
+            if (auto const &it = map.find(*ppar); it != map.end() && it->second.sp) {
+                *this = it->second;
             }
         }
     }
     void analyze(std::unordered_set<std::string> &set) const {
-        if (auto papp = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **papp;
+        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+            auto &[fst, snd] = *papp;
             fst.analyze(set);
             snd.analyze(set);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+            auto &[par, tmp] = *plef;
             if (auto const &it = set.find(par); it != set.end()) {
                 tmp.analyze(set);
             } else {
@@ -338,8 +319,8 @@ class Tree {
                 tmp.analyze(set);
                 set.erase(jt);
             }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+            auto &[par, tmp] = *peef;
             if (auto const &it = set.find(par); it != set.end()) {
                 tmp.analyze(set);
             } else {
@@ -347,13 +328,13 @@ class Tree {
                 tmp.analyze(set);
                 set.erase(jt);
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
             if (auto const &it = set.find(*ppar); it == set.end()) {
                 throw std::runtime_error("unbound variable: $" + *ppar);
             }
         }
     }
-    static inline std::unordered_map<std::string, std::shared_ptr<std::pair<Tree, bool>>> map;
+    static inline std::unordered_map<std::string, Tree> map;
 public:
     static auto const &put(Slice &&exp, std::string const &par, bool calc) {
         auto res = parse(std::move(exp));
@@ -365,7 +346,7 @@ public:
             clr_flag();
             res.calc();
         }
-        return map.emplace(par, std::make_shared<std::pair<Tree, bool>>(std::move(res), calc)).first->second->first;
+        return map.emplace(par, res).first->second;
     }
     static auto const &dir() {
         return map;
@@ -374,37 +355,35 @@ public:
         return map.clear();
     }
     std::string translate(bool lb = 0, bool rb = 0) const {
-        if (auto pnil = std::get_if<TokenIdx::Nil>(&token)) {
+        if (auto pnil = std::get_if<TokenIdx::Nil>(sp.get())) {
             return "...";
-        } else if (auto pchk = std::get_if<TokenIdx::Chk>(&token)) {
+        } else if (auto pchk = std::get_if<TokenIdx::Chk>(sp.get())) {
             return "?";
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+            auto &[par, tmp] = *plef;
             auto s = "\\" + par + " " + tmp.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+            auto &[par, tmp] = *peef;
             auto s = "^" + par + " " + tmp.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
-        } else if (auto pint = std::get_if<TokenIdx::Int>(&token)) {
+        } else if (auto pint = std::get_if<TokenIdx::Int>(sp.get())) {
             return pint->to_string();
-        } else if (auto popr = std::get_if<TokenIdx::Opr>(&token)) {
+        } else if (auto popr = std::get_if<TokenIdx::Opr>(sp.get())) {
             return std::string{popr->first};
-        } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(&token)) {
+        } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(sp.get())) {
             return std::string{pcmp->first};
-        } else if (auto paoi = std::get_if<TokenIdx::AOI>(&token)) {
+        } else if (auto paoi = std::get_if<TokenIdx::AOI>(sp.get())) {
             auto s = std::string{paoi->first.first, ' '} + paoi->second.to_string();
             return lb ? "(" + s + ")" : s;
-        } else if (auto paci = std::get_if<TokenIdx::ACI>(&token)) {
+        } else if (auto paci = std::get_if<TokenIdx::ACI>(sp.get())) {
             auto s = std::string{paci->first.first, ' '} + paci->second.to_string();
             return lb ? "(" + s + ")" : s;
-        } else if (auto papp = std::get_if<TokenIdx::App>(&token)) {
-            auto &[fst, snd] = **papp;
+        } else if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+            auto &[fst, snd] = *papp;
             auto s = fst.translate(lb && !lb, 1) + " " + snd.translate(1, rb && !lb);
             return lb ? "(" + s + ")" : s;
-        } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
-            return (*parg)->first.translate(lb, rb);
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
             return "$" + *ppar;
         } else {
             assert(false); // unreachable

@@ -78,7 +78,6 @@ enum Tree {
     App(Box<Tree>, Box<Tree>),
     Arg(Rc<RefCell<(Tree, bool)>>),
     Par(String),
-    Glb(String),
 }
 impl Tree {
     fn first(fst: Tree) -> Result<Tree, String> {
@@ -118,8 +117,6 @@ impl Tree {
             Self::parse(&sym[1..sym.len() - 1], Tree::Undefined, Tree::Undefined)
         } else if sym.starts_with('$') {
             Ok(Tree::Par(sym[1..].to_string()))
-        } else if sym.starts_with('&') {
-            Ok(Tree::Glb(sym[1..].to_string()))
         } else if sym == "..." {
             Ok(Tree::Ellipsis)
         } else if let Some((name, opr)) = OPRS.iter().find(|(s, _)| *s == sym) {
@@ -132,35 +129,35 @@ impl Tree {
             Err(format!("unknown symbol: {}", sym))
         }
     }
-    fn calculate(self, map: &HashMap<String, Tree>) -> Result<Self, String> {
+    fn calculate(self) -> Result<Self, String> {
         if stack_err() {
             return Err("recursion limit exceeded".to_string());
         }
         match self {
-            Tree::App(box fst, box snd) => match fst.calculate(map)? {
+            Tree::App(box fst, box snd) => match fst.calculate()? {
                 Tree::Ellipsis => Ok(Tree::Ellipsis),
                 Tree::LEF(sym, box mut tmp) => {
-                    tmp.substitute(&Rc::new(RefCell::new((snd, false))), &sym);
-                    tmp.calculate(map)
+                    tmp.replace(&Rc::new(RefCell::new((snd, false))), &sym);
+                    tmp.calculate()
                 }
                 Tree::EEF(sym, box mut tmp) => {
-                    let snd = snd.calculate(map)?;
-                    tmp.substitute(&Rc::new(RefCell::new((snd, true))), &sym);
-                    tmp.calculate(map)
+                    let snd = snd.calculate()?;
+                    tmp.replace(&Rc::new(RefCell::new((snd, true))), &sym);
+                    tmp.calculate()
                 }
-                Tree::Opr(opr, name) => match snd.calculate(map)? {
+                Tree::Opr(opr, name) => match snd.calculate()? {
                     Tree::Int(int) if !int.is_zero() || (name != "/" && name != "%") => Ok(Tree::AOI(opr, name, int)),
                     snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
-                Tree::Cmp(cmp, name) => match snd.calculate(map)? {
+                Tree::Cmp(cmp, name) => match snd.calculate()? {
                     Tree::Int(int) => Ok(Tree::ACI(cmp, name, int)),
                     snd => Err(format!("cannot apply {} on: {}", name, snd.translate(false, false))),
                 },
-                Tree::AOI(opr, name, int) => match snd.calculate(map)? {
+                Tree::AOI(opr, name, int) => match snd.calculate()? {
                     Tree::Int(val) => Ok(Tree::Int(opr(val, int))),
                     snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
-                Tree::ACI(cmp, name, int) => match snd.calculate(map)? {
+                Tree::ACI(cmp, name, int) => match snd.calculate()? {
                     Tree::Int(val) => Ok(Tree::LEF("T".to_string(), Box::new(Tree::LEF("F".to_string(), Box::new(Tree::Par(if cmp(val, int) { "T" } else { "F" }.to_string())))))),
                     snd => Err(format!("cannot apply {} {} on: {}", name, int, snd.translate(false, false))),
                 },
@@ -169,10 +166,10 @@ impl Tree {
             Tree::Arg(arg) => {
                 let (shr, rec) = &mut *arg.borrow_mut();
                 if Rc::strong_count(&arg) == 1 {
-                    if !*rec { mem::replace(shr, Tree::Undefined).calculate(map) } else { Ok(mem::replace(shr, Tree::Undefined)) }
+                    if !*rec { mem::replace(shr, Tree::Undefined).calculate() } else { Ok(mem::replace(shr, Tree::Undefined)) }
                 } else {
                     if !*rec {
-                        *shr = mem::replace(shr, Tree::Undefined).calculate(map)?;
+                        *shr = mem::replace(shr, Tree::Undefined).calculate()?;
                         *rec = true;
                     }
                     Ok(shr.clone())
@@ -181,27 +178,20 @@ impl Tree {
             Tree::Par(par) => {
                 Err(format!("unbound variable: ${}", par))
             }
-            Tree::Glb(glb) => {
-                if let Some(tmp) = map.get(&glb) {
-                    tmp.clone().calculate(map)
-                } else {
-                    Err(format!("undefined symbol: &{}", glb))
-                }
-            }
             _ => Ok(self),
         }
     }
-    fn substitute(&mut self, arg: &Rc<RefCell<(Tree, bool)>>, par: &String) {
+    fn replace(&mut self, arg: &Rc<RefCell<(Tree, bool)>>, par: &String) {
         match self {
             Tree::LEF(sym, box tmp) if sym != par => {
-                tmp.substitute(arg, par);
+                tmp.replace(arg, par);
             }
             Tree::EEF(sym, box tmp) if sym != par => {
-                tmp.substitute(arg, par);
+                tmp.replace(arg, par);
             }
             Tree::App(box fst, box snd) => {
-                fst.substitute(arg, par);
-                snd.substitute(arg, par);
+                fst.replace(arg, par);
+                snd.replace(arg, par);
             }
             Tree::Par(sym) if sym == par => {
                 *self = Tree::Arg(arg.clone());
@@ -240,28 +230,35 @@ impl Tree {
                 shr.translate(lb, rb)
             }
             Tree::Par(par) => format!("${}", par),
-            Tree::Glb(glb) => format!("&{}", glb),
             _ => panic!("invalid tree"),
         }
     }
 }
-fn process(input: String, map: &mut HashMap<String, Tree>) -> Result<(), String> {
+fn process(input: String, map: &mut HashMap<String, Rc<RefCell<(Tree, bool)>>>) -> Result<(), String> {
     let (cmd, exp) = read(&input)?;
     if cmd.is_empty() || cmd == "#" {
         Ok(())
     } else if cmd.starts_with(':') {
-        let tmp = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?;
-        map.insert(cmd[1..].to_string(), tmp);
+        let mut res = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?;
+        for (par, arg) in map.iter() {
+            res.replace(arg, par);
+        }
+        map.insert(cmd[1..].to_string(), Rc::new(RefCell::new((res, false))));
         Ok(())
     } else if cmd == "cal" {
-        let res = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?.calculate(map)?;
+        let mut res = Tree::parse(exp, Tree::Undefined, Tree::Undefined)?;
+        for (par, arg) in map.iter() {
+            res.replace(arg, par);
+        }
+        let res = res.calculate()?;
         eprint!("{}", *PS_RES);
         println!("{}", res.translate(false, false));
+        map.insert("".to_string(), Rc::new(RefCell::new((res, true))));
         Ok(())
     } else if cmd == "dir" {
-        for (glb, tmp) in map.iter() {
+        for (par, _) in map.iter() {
             eprint!("{}", *PS_OUT);
-            println!(":{:<8} {}", if glb.len() <= 8 { glb.clone() } else { format!("{}..", &glb[..6]) }, tmp.translate(false, false));
+            println!(":{}", par);
         }
         Ok(())
     } else if cmd == "clr" {
