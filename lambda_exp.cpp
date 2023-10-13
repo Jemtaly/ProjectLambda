@@ -117,8 +117,7 @@ class Tree {
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
         std::pair<std::string, Tree>, std::pair<std::string, Tree>,
         std::pair<Tree, Tree>>;
-    std::shared_ptr<TokenVar> sp;
-    bool lb;
+    std::shared_ptr<TokenVar> sp; bool lb;
     Tree(TokenVar *ptr): sp(ptr), lb(0) {}
     friend std::pair<std::string, Tree>;
     friend std::pair<Tree, Tree>;
