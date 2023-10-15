@@ -119,8 +119,6 @@ class Tree {
         std::pair<Tree, Tree>>;
     std::shared_ptr<TokenVar> sp; bool lb;
     Tree(TokenVar *ptr): sp(ptr), lb(0) {}
-    friend std::pair<std::string, Tree>;
-    friend std::pair<Tree, Tree>;
     static Tree first(Tree &&fst) {
         if (fst.sp == nullptr) {
             throw std::runtime_error("empty expression");
@@ -182,6 +180,7 @@ class Tree {
         if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
             auto &[fst, snd] = *papp;
             fst.calc();
+            snd.lb = 1;
             if (auto pnil = std::get_if<TokenIdx::Nil>(fst.sp.get())) {
                 *sp = *N.sp;
             } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.sp.get())) {
@@ -189,14 +188,12 @@ class Tree {
                 *sp = snd.sp->index() == TokenIdx::Nil ? *F.sp : *T.sp;
             } else if (auto plef = std::get_if<TokenIdx::LEF>(fst.sp.get())) {
                 auto &[par, tmp] = *plef;
-                snd.lb = 1;
                 auto t_s = tmp.substitute(snd, par);
                 t_s.calc();
                 *sp = *t_s.sp;
             } else if (auto peef = std::get_if<TokenIdx::EEF>(fst.sp.get())) {
                 snd.calc();
                 auto &[par, tmp] = *peef;
-                snd.lb = 1;
                 auto t_s = tmp.substitute(snd, par);
                 t_s.calc();
                 *sp = *t_s.sp;

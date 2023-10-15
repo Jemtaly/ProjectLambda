@@ -1,5 +1,5 @@
 # Y combinator
-:Y \g $g ($x $x) |x \x $g ($x $x)
+:Y \g $x $x |x \x $g ($x $x)
 
 # True and false
 :T \T \F $T

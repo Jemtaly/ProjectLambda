@@ -124,8 +124,6 @@ class Tree {
     TokenVar token;
     template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
     Tree(Args &&...args): token(std::forward<Args>(args)...) {}
-    friend Box<std::pair<std::string, Tree>>;
-    friend Box<std::pair<Tree, Tree>>;
     static Tree first(Tree &&fst) {
         if (fst.token.index() == TokenIdx::Und) {
             throw std::runtime_error("empty expression");
