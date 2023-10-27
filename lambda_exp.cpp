@@ -5,6 +5,8 @@
 #include <cassert>
 #include <string>
 #include <memory>
+#include <queue>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include "slice.hpp"
@@ -336,7 +338,28 @@ public:
     Tree &operator=(Tree const &) = default;
     Tree(Tree &&) = default;
     Tree &operator=(Tree &&) = default;
-    ~Tree() = default;
+    ~Tree() {
+        if (sp == nullptr) {
+            return;
+        }
+        std::queue<std::shared_ptr<TokenVar>> flat;
+        flat.push(std::move(sp));
+        for (; not flat.empty(); flat.pop()) {
+            if (auto &sp = flat.front(); sp.use_count() == 1) {
+                if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+                    auto &[fst, snd] = *papp;
+                    flat.push(std::move(fst.sp));
+                    flat.push(std::move(snd.sp));
+                } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+                    auto &[par, tmp] = *plef;
+                    flat.push(std::move(tmp.sp));
+                } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+                    auto &[par, tmp] = *peef;
+                    flat.push(std::move(tmp.sp));
+                }
+            }
+        }
+    }
     static auto const &put(Slice &&exp, std::string const &par, bool calc) {
         auto res = parse(std::move(exp));
         res.substitute(map);

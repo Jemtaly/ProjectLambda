@@ -5,6 +5,8 @@
 #include <cassert>
 #include <string>
 #include <memory>
+#include <queue>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include "container.hpp"
@@ -138,21 +140,6 @@ class Tree {
             return Box<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         }
     }
-    // static Tree parse(Slice &&exp, Tree &&fst = std::nullopt) {
-    //     if (auto sym = read(exp); sym.empty()) {
-    //         return first(std::move(fst));
-    //     } else if (sym[0] == '\\') {
-    //         return build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
-    //     } else if (sym[0] == '|') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
-    //     } else if (sym[0] == '^') {
-    //         return build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp)))));
-    //     } else if (sym[0] == '@') {
-    //         return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), first(std::move(fst)))));
-    //     } else {
-    //         return parse(std::move(exp), build(std::move(fst), lex(std::move(sym))));
-    //     }
-    // }
     static Tree parse(Slice &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
@@ -333,11 +320,42 @@ class Tree {
     }
     static inline std::unordered_map<std::string, Tree> map;
 public:
-    Tree(Tree const &other) = default;
-    Tree &operator=(Tree const &) = default;
-    Tree(Tree &&) = default;
-    Tree &operator=(Tree &&) = default;
-    ~Tree() = default;
+    Tree(Tree const &other): token(other.token) {}
+    Tree &operator=(Tree const &other) {
+        token = other.token;
+        return *this;
+    }
+    Tree(Tree &&other): token(std::exchange(other.token, std::nullopt)) {}
+    Tree &operator=(Tree &&other) {
+        token = std::exchange(other.token, std::nullopt);
+        return *this;
+    }
+    ~Tree() {
+        if (token.index() == TokenIdx::Und) {
+            return;
+        }
+        std::queue<TokenVar> flat;
+        flat.push(std::exchange(token, std::nullopt));
+        for (; not flat.empty(); flat.pop()) {
+            auto &token = flat.front();
+            if (auto papp = std::get_if<TokenIdx::App>(&token)) {
+                auto &[fst, snd] = **papp;
+                flat.push(std::exchange(fst.token, std::nullopt));
+                flat.push(std::exchange(snd.token, std::nullopt));
+            } else if (auto parg = std::get_if<TokenIdx::LEF>(&token)) {
+                auto &[par, tmp] = **parg;
+                flat.push(std::exchange(tmp.token, std::nullopt));
+            } else if (auto parg = std::get_if<TokenIdx::EEF>(&token)) {
+                auto &[par, tmp] = **parg;
+                flat.push(std::exchange(tmp.token, std::nullopt));
+            } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
+                auto &shr = (*parg)->first;
+                if (parg->use_count() == 1) {
+                    flat.push(std::exchange(shr.token, std::nullopt));
+                }
+            }
+        }
+    }
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
