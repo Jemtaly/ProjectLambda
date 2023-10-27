@@ -333,6 +333,11 @@ class Tree {
     }
     static inline std::unordered_map<std::string, Tree> map;
 public:
+    Tree(Tree const &other) = default;
+    Tree &operator=(Tree const &) = default;
+    Tree(Tree &&) = default;
+    Tree &operator=(Tree &&) = default;
+    ~Tree() = default;
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
