@@ -40,7 +40,7 @@ def test():
     eg.add_argument('-n', '--cbn', action = 'store_const', const = 'cbn', dest = 'choice')
     args = ap.parse_args()
     pf = {'cbv': '&', 'cbn': '$'}[args.choice]
-    l = open(f'bf_{args.choice}.l').read()
+    l = open(f'bf_{args.choice}.λ').read()
     l += f':fun {bf2instrs(args.bf.read(), pf)}\n'
     l += f':input {enc(args.input.read())}\n'
     l += f'\ncal {pf}run {pf}fun {pf}input\n'
