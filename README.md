@@ -48,7 +48,7 @@ The basic syntax of ProjectLambda is the same as the standard form of the lambda
 ### First example
 
 ```
-cal (\a \o \b $o $b $a) - 3 10
+cal (\a \o \b $o $b $a) 10 - 3
 # output: 7
 ```
 
