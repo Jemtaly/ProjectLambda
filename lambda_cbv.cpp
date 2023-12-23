@@ -12,9 +12,9 @@
 #include "container.hpp"
 #include "slice.hpp"
 #ifndef USE_GMP
-#include "strint.hpp"
+#include "bigint_nat.hpp" // native big integer
 #else
-#include "gmpint.hpp"
+#include "bigint_gmp.hpp" // GNU MP big integer
 #endif
 #if defined _WIN32
 #include <Windows.h>
@@ -80,19 +80,19 @@ auto read(Slice &exp) {
         }
     }
 }
-StrInt operator+(StrInt const &lval, StrInt const &rval);
-StrInt operator-(StrInt const &lval, StrInt const &rval);
-StrInt operator*(StrInt const &lval, StrInt const &rval);
-StrInt operator/(StrInt const &lval, StrInt const &rval);
-StrInt operator%(StrInt const &lval, StrInt const &rval);
-bool operator>(StrInt const &lval, StrInt const &rval);
-bool operator<(StrInt const &lval, StrInt const &rval);
-bool operator>=(StrInt const &lval, StrInt const &rval);
-bool operator<=(StrInt const &lval, StrInt const &rval);
-bool operator==(StrInt const &lval, StrInt const &rval);
-bool operator!=(StrInt const &lval, StrInt const &rval);
-typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
-typedef bool (*cmp_t)(StrInt const &, StrInt const &);
+BigInt operator+(BigInt const &lval, BigInt const &rval);
+BigInt operator-(BigInt const &lval, BigInt const &rval);
+BigInt operator*(BigInt const &lval, BigInt const &rval);
+BigInt operator/(BigInt const &lval, BigInt const &rval);
+BigInt operator%(BigInt const &lval, BigInt const &rval);
+bool operator>(BigInt const &lval, BigInt const &rval);
+bool operator<(BigInt const &lval, BigInt const &rval);
+bool operator>=(BigInt const &lval, BigInt const &rval);
+bool operator<=(BigInt const &lval, BigInt const &rval);
+bool operator==(BigInt const &lval, BigInt const &rval);
+bool operator!=(BigInt const &lval, BigInt const &rval);
+typedef BigInt (*opr_t)(BigInt const &, BigInt const &);
+typedef bool (*cmp_t)(BigInt const &, BigInt const &);
 static inline std::unordered_map<char, opr_t> const oprs = {
     {'+', operator+},
     {'-', operator-},
@@ -118,9 +118,9 @@ class Tree {
     using TokenVar = std::variant<
         std::nullopt_t, std::string,
         std::monostate, std::monostate,
-        StrInt,
-        std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
-        std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
+        BigInt,
+        std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, BigInt>,
+        std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
         Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>, std::string>;
     TokenVar token;
@@ -171,7 +171,7 @@ class Tree {
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
             return Tree(std::in_place_index<TokenIdx::Cmp>, *c);
         } else try {
-            return Tree(std::in_place_index<TokenIdx::Int>, StrInt::from_string(sym));
+            return Tree(std::in_place_index<TokenIdx::Int>, BigInt::from_string(sym));
         } catch (...) {
             throw std::runtime_error("invalid symbol: " + std::string(sym));
         }

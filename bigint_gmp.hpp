@@ -1,0 +1,53 @@
+#pragma once
+#include <gmpxx.h>
+#include <utility>
+#include <string>
+class BigInt {
+    mpz_class data;
+    template <typename... T>
+    BigInt(T &&...args):
+        data(std::forward<T>(args)...) {}
+public:
+    static BigInt from_string(std::string const &str) {
+        return BigInt(str);
+    }
+    std::string to_string() const {
+        return data.get_str();
+    }
+    operator bool() const {
+        return data != 0;
+    }
+    friend BigInt operator+(BigInt const &lval, BigInt const &rval) {
+        return BigInt(lval.data + rval.data);
+    }
+    friend BigInt operator-(BigInt const &lval, BigInt const &rval) {
+        return BigInt(lval.data - rval.data);
+    }
+    friend BigInt operator*(BigInt const &lval, BigInt const &rval) {
+        return BigInt(lval.data * rval.data);
+    }
+    friend BigInt operator/(BigInt const &lval, BigInt const &rval) {
+        return BigInt(lval.data / rval.data);
+    }
+    friend BigInt operator%(BigInt const &lval, BigInt const &rval) {
+        return BigInt(lval.data % rval.data);
+    }
+    friend bool operator>(BigInt const &lval, BigInt const &rval) {
+        return lval.data > rval.data;
+    }
+    friend bool operator<(BigInt const &lval, BigInt const &rval) {
+        return lval.data < rval.data;
+    }
+    friend bool operator>=(BigInt const &lval, BigInt const &rval) {
+        return lval.data >= rval.data;
+    }
+    friend bool operator<=(BigInt const &lval, BigInt const &rval) {
+        return lval.data <= rval.data;
+    }
+    friend bool operator==(BigInt const &lval, BigInt const &rval) {
+        return lval.data == rval.data;
+    }
+    friend bool operator!=(BigInt const &lval, BigInt const &rval) {
+        return lval.data != rval.data;
+    }
+};

@@ -2,21 +2,21 @@
 #include <stdint.h>
 #include <string>
 #include <stdexcept>
-class StrInt {
+class BigInt {
     size_t len;
     int8_t const *abs;
     size_t *ctr;
     int8_t get(size_t i) const {
         return abs[i < len ? i : len];
     }
-    StrInt(size_t rlen, int8_t const *rabs):
+    BigInt(size_t rlen, int8_t const *rabs):
         len(rlen), abs(rabs), ctr(new size_t(1)) {
         while (len && abs[len - 1] == abs[len]) {
             len--;
         }
     }
 public:
-    static StrInt from_string(std::string_view sv) {
+    static BigInt from_string(std::string_view sv) {
         auto itr = sv.rbegin(), end = sv.rend();
         if (sv.front() == '+' || sv.front() == '-') {
             end--;
@@ -46,7 +46,7 @@ public:
             }
             abs[len] = 0;
         }
-        return StrInt(len, abs);
+        return BigInt(len, abs);
     }
     std::string to_string() const {
         char str[len + 2]; // GCC and Clang variable length array extension
@@ -72,11 +72,11 @@ public:
         }
         return std::string(itr, end);
     }
-    StrInt(StrInt const &rval):
+    BigInt(BigInt const &rval):
         len(rval.len), abs(rval.abs), ctr(rval.ctr) {
         ++*ctr;
     }
-    StrInt &operator=(StrInt const &rval) {
+    BigInt &operator=(BigInt const &rval) {
         ++*rval.ctr;
         if (--*ctr == 0) {
             delete[] abs;
@@ -87,7 +87,7 @@ public:
         ctr = rval.ctr;
         return *this;
     }
-    ~StrInt() {
+    ~BigInt() {
         if (--*ctr == 0) {
             delete[] abs;
             delete ctr;
@@ -96,7 +96,7 @@ public:
     operator bool() const {
         return len || abs[len];
     }
-    friend StrInt operator+(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt operator+(BigInt const &lhs, BigInt const &rhs) {
         size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
         int8_t *abs = new int8_t[len + 1];
         int8_t s = 0;
@@ -104,9 +104,9 @@ public:
             s = lhs.get(i) + rhs.get(i) + (s >= 10);
             abs[i] = s >= 10 ? s - 10 : s;
         }
-        return StrInt(len, abs);
+        return BigInt(len, abs);
     }
-    friend StrInt operator-(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt operator-(BigInt const &lhs, BigInt const &rhs) {
         size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
         int8_t *abs = new int8_t[len + 1];
         int8_t d = 0;
@@ -114,9 +114,9 @@ public:
             d = lhs.get(i) - rhs.get(i) - (d < 0);
             abs[i] = d < 0 ? d + 10 : d;
         }
-        return StrInt(len, abs);
+        return BigInt(len, abs);
     }
-    friend StrInt operator*(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt operator*(BigInt const &lhs, BigInt const &rhs) {
         size_t len = lhs.len + rhs.len + 1;
         int8_t *abs = new int8_t[len + 1]();
         for (size_t i = 0; i <= len; i++) {
@@ -127,10 +127,10 @@ public:
                 abs[i + j] = s >= 10 ? s - 10 : s;
             }
         }
-        return StrInt(len, abs);
+        return BigInt(len, abs);
     }
     template <bool select>
-    friend StrInt divmod(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt divmod(BigInt const &lhs, BigInt const &rhs) {
         size_t len = lhs.len + rhs.len;
         int8_t *pabs = new int8_t[len + 1], *nabs = new int8_t[len + 1];
         int8_t *qabs = new int8_t[lhs.len + 1];
@@ -181,20 +181,20 @@ public:
         delete[] nabs;
         if constexpr (select) {
             delete[] qabs;
-            return StrInt(rhs.len, rabs);
+            return BigInt(rhs.len, rabs);
         } else {
             delete[] rabs;
-            return StrInt(lhs.len, qabs);
+            return BigInt(lhs.len, qabs);
         }
     }
-    friend StrInt operator/(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt operator/(BigInt const &lhs, BigInt const &rhs) {
         return divmod<0>(lhs, rhs);
     }
-    friend StrInt operator%(StrInt const &lhs, StrInt const &rhs) {
+    friend BigInt operator%(BigInt const &lhs, BigInt const &rhs) {
         return divmod<1>(lhs, rhs);
     }
     template <auto gt, auto eq, auto lt>
-    friend auto compare(StrInt const &lhs, StrInt const &rhs) {
+    friend auto compare(BigInt const &lhs, BigInt const &rhs) {
         if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
             return gt;
         }
@@ -211,22 +211,22 @@ public:
         }
         return eq;
     }
-    friend bool operator>(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator>(BigInt const &lhs, BigInt const &rhs) {
         return compare<true, false, false>(lhs, rhs);
     }
-    friend bool operator<(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator<(BigInt const &lhs, BigInt const &rhs) {
         return compare<false, false, true>(lhs, rhs);
     }
-    friend bool operator>=(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator>=(BigInt const &lhs, BigInt const &rhs) {
         return compare<true, true, false>(lhs, rhs);
     }
-    friend bool operator<=(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator<=(BigInt const &lhs, BigInt const &rhs) {
         return compare<false, true, true>(lhs, rhs);
     }
-    friend bool operator==(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator==(BigInt const &lhs, BigInt const &rhs) {
         return compare<false, true, false>(lhs, rhs);
     }
-    friend bool operator!=(StrInt const &lhs, StrInt const &rhs) {
+    friend bool operator!=(BigInt const &lhs, BigInt const &rhs) {
         return compare<true, false, true>(lhs, rhs);
     }
 };

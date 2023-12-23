@@ -11,9 +11,9 @@
 #include <unordered_set>
 #include "slice.hpp"
 #ifndef USE_GMP
-#include "strint.hpp"
+#include "bigint_nat.hpp" // native big integer
 #else
-#include "gmpint.hpp"
+#include "bigint_gmp.hpp" // GNU MP big integer
 #endif
 #if defined _WIN32
 #include <Windows.h>
@@ -79,19 +79,19 @@ auto read(Slice &exp) {
         }
     }
 }
-StrInt operator+(StrInt const &lval, StrInt const &rval);
-StrInt operator-(StrInt const &lval, StrInt const &rval);
-StrInt operator*(StrInt const &lval, StrInt const &rval);
-StrInt operator/(StrInt const &lval, StrInt const &rval);
-StrInt operator%(StrInt const &lval, StrInt const &rval);
-bool operator>(StrInt const &lval, StrInt const &rval);
-bool operator<(StrInt const &lval, StrInt const &rval);
-bool operator>=(StrInt const &lval, StrInt const &rval);
-bool operator<=(StrInt const &lval, StrInt const &rval);
-bool operator==(StrInt const &lval, StrInt const &rval);
-bool operator!=(StrInt const &lval, StrInt const &rval);
-typedef StrInt (*opr_t)(StrInt const &, StrInt const &);
-typedef bool (*cmp_t)(StrInt const &, StrInt const &);
+BigInt operator+(BigInt const &lval, BigInt const &rval);
+BigInt operator-(BigInt const &lval, BigInt const &rval);
+BigInt operator*(BigInt const &lval, BigInt const &rval);
+BigInt operator/(BigInt const &lval, BigInt const &rval);
+BigInt operator%(BigInt const &lval, BigInt const &rval);
+bool operator>(BigInt const &lval, BigInt const &rval);
+bool operator<(BigInt const &lval, BigInt const &rval);
+bool operator>=(BigInt const &lval, BigInt const &rval);
+bool operator<=(BigInt const &lval, BigInt const &rval);
+bool operator==(BigInt const &lval, BigInt const &rval);
+bool operator!=(BigInt const &lval, BigInt const &rval);
+typedef BigInt (*opr_t)(BigInt const &, BigInt const &);
+typedef bool (*cmp_t)(BigInt const &, BigInt const &);
 static inline std::unordered_map<char, opr_t> const oprs = {
     {'+', operator+},
     {'-', operator-},
@@ -114,9 +114,9 @@ class Tree {
         App,
     };
     using TokenVar = std::variant<
-        std::monostate, std::monostate, std::string, StrInt,
-        std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, StrInt>,
-        std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, StrInt>,
+        std::monostate, std::monostate, std::string, BigInt,
+        std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, BigInt>,
+        std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
         std::pair<std::string, Tree>, std::pair<std::string, Tree>,
         std::pair<Tree, Tree>>;
     std::shared_ptr<TokenVar> sp; bool lb;
@@ -164,7 +164,7 @@ class Tree {
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
             return new TokenVar(std::in_place_index<TokenIdx::Cmp>, *c);
         } else try {
-            return new TokenVar(std::in_place_index<TokenIdx::Int>, StrInt::from_string(sym));
+            return new TokenVar(std::in_place_index<TokenIdx::Int>, BigInt::from_string(sym));
         } catch (...) {
             throw std::runtime_error("invalid symbol: " + std::string(sym));
         }
@@ -190,15 +190,15 @@ class Tree {
                 *sp = snd.sp->index() == TokenIdx::Nil ? *F.sp : *T.sp;
             } else if (auto plef = std::get_if<TokenIdx::LEF>(fst.sp.get())) {
                 auto &[par, tmp] = *plef;
-                auto t_s = tmp.substitute(snd, par);
-                t_s.calc();
-                *sp = *t_s.sp;
+                auto tsb = tmp.substitute(snd, par);
+                tsb.calc();
+                *sp = *tsb.sp;
             } else if (auto peef = std::get_if<TokenIdx::EEF>(fst.sp.get())) {
                 snd.calc();
                 auto &[par, tmp] = *peef;
-                auto t_s = tmp.substitute(snd, par);
-                t_s.calc();
-                *sp = *t_s.sp;
+                auto tsb = tmp.substitute(snd, par);
+                tsb.calc();
+                *sp = *tsb.sp;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(fst.sp.get())) {
                 snd.calc();
                 if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get()); pint && (*pint || popr->first != '/' && popr->first != '%')) {
@@ -246,25 +246,25 @@ class Tree {
         }
         if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
             auto &[fst, snd] = *papp;
-            auto f_s = fst.substitute(arg, tar);
-            auto s_s = snd.substitute(arg, tar);
-            if (f_s.sp != fst.sp || s_s.sp != snd.sp) {
-                return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(f_s), std::move(s_s));
+            auto fsb = fst.substitute(arg, tar);
+            auto ssb = snd.substitute(arg, tar);
+            if (fsb.sp != fst.sp || ssb.sp != snd.sp) {
+                return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(fsb), std::move(ssb));
             }
         } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
             auto &[par, tmp] = *plef;
             if (par != tar) {
-                auto t_s = tmp.substitute(arg, tar);
-                if (t_s.sp != tmp.sp) {
-                    return new TokenVar(std::in_place_index<TokenIdx::LEF>, par, std::move(t_s));
+                auto tsb = tmp.substitute(arg, tar);
+                if (tsb.sp != tmp.sp) {
+                    return new TokenVar(std::in_place_index<TokenIdx::LEF>, par, std::move(tsb));
                 }
             }
         } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
             auto &[par, tmp] = *peef;
             if (par != tar) {
-                auto t_s = tmp.substitute(arg, tar);
-                if (t_s.sp != tmp.sp) {
-                    return new TokenVar(std::in_place_index<TokenIdx::EEF>, par, std::move(t_s));
+                auto tsb = tmp.substitute(arg, tar);
+                if (tsb.sp != tmp.sp) {
+                    return new TokenVar(std::in_place_index<TokenIdx::EEF>, par, std::move(tsb));
                 }
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
