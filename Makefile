@@ -14,7 +14,7 @@ else ifeq ($(findstring windows-msvc,$(MACHINE)), windows-msvc)
     LDFLAGS = -Wl,/STACK:$(STACK_SIZE) -lUser32
 else ifeq ($(findstring windows-gnu,$(MACHINE)), windows-gnu)
     EXE_EXT = .exe
-    LDFLAGS = -Wl,--stack,$(STACK_SIZE)
+    LDFLAGS = -Wl,--stack,$(STACK_SIZE) -static
 else
     $(error Unsupported platform: $(MACHINE))
 endif
@@ -25,9 +25,9 @@ endif
 ifeq ($(USE_GMP), 1)
     CXXFLAGS += -DUSE_GMP
     LDFLAGS += -lgmp
-    TARGET = $(BUILD_DIR)/$(NAME)-$(VERSION)-$(MACHINE)-gmpint$(EXE_EXT)
+    TARGET = $(BUILD_DIR)/$(NAME)-$(VERSION)-$(MACHINE)-gmp$(EXE_EXT)
 else
-    TARGET = $(BUILD_DIR)/$(NAME)-$(VERSION)-$(MACHINE)-strint$(EXE_EXT)
+    TARGET = $(BUILD_DIR)/$(NAME)-$(VERSION)-$(MACHINE)-nat$(EXE_EXT)
 endif
 .PHONY: all clean
 all: $(TARGET)
