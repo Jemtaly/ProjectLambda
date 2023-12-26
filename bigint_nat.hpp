@@ -4,14 +4,14 @@
 #include <stdexcept>
 class BigInt {
     size_t len;
-    int8_t const *abs;
+    int8_t const *arr;
     size_t *ctr;
     int8_t get(size_t i) const {
-        return abs[i < len ? i : len];
+        return arr[i < len ? i : len];
     }
-    BigInt(size_t rlen, int8_t const *rabs):
-        len(rlen), abs(rabs), ctr(new size_t(1)) {
-        while (len && abs[len - 1] == abs[len]) {
+    BigInt(size_t rlen, int8_t const *rarr):
+        len(rlen), arr(rarr), ctr(new size_t(1)) {
+        while (len && arr[len - 1] == arr[len]) {
             len--;
         }
     }
@@ -22,39 +22,39 @@ public:
             end--;
         }
         size_t len = end - itr;
-        int8_t *abs = new int8_t[len + 1];
+        int8_t *arr = new int8_t[len + 1];
         if (sv.front() == '-') {
             int8_t d = 10;
             for (size_t j = 0; itr != end; itr++) {
                 if (*itr < '0' || *itr > '9') {
-                    delete[] abs;
+                    delete[] arr;
                     throw std::invalid_argument("invalid argument");
                 } else {
                     d = '9' - *itr + (d == 10);
-                    abs[j++] = d == 10 ? 0 : d;
+                    arr[j++] = d == 10 ? 0 : d;
                 }
             }
-            abs[len] = d == 10 ? 0 : 9;
+            arr[len] = d == 10 ? 0 : 9;
         } else {
             for (size_t j = 0; itr != end; itr++) {
                 if (*itr < '0' || *itr > '9') {
-                    delete[] abs;
+                    delete[] arr;
                     throw std::invalid_argument("invalid argument");
                 } else {
-                    abs[j++] = *itr - '0';
+                    arr[j++] = *itr - '0';
                 }
             }
-            abs[len] = 0;
+            arr[len] = 0;
         }
-        return BigInt(len, abs);
+        return BigInt(len, arr);
     }
     std::string to_string() const {
         char str[len + 2]; // GCC and Clang variable length array extension
         char *itr = &str[len + 2], *end = &str[len + 2];
-        if (abs[len]) {
+        if (arr[len]) {
             bool flag = true;
             for (size_t i = 0; i < len; i++) {
-                int8_t d = '9' - abs[i] + flag;
+                int8_t d = '9' - arr[i] + flag;
                 *--itr = (flag = d > '9') ? '0' : d;
             }
             if (flag) {
@@ -65,7 +65,7 @@ public:
             }
         } else if (len) {
             for (size_t i = 0; i < len; i++) {
-                *--itr = '0' + abs[i];
+                *--itr = '0' + arr[i];
             }
         } else {
             *--itr = '0';
@@ -73,160 +73,160 @@ public:
         return std::string(itr, end);
     }
     BigInt(BigInt const &rval):
-        len(rval.len), abs(rval.abs), ctr(rval.ctr) {
+        len(rval.len), arr(rval.arr), ctr(rval.ctr) {
         ++*ctr;
     }
     BigInt &operator=(BigInt const &rval) {
         ++*rval.ctr;
         if (--*ctr == 0) {
-            delete[] abs;
+            delete[] arr;
             delete ctr;
         }
         len = rval.len;
-        abs = rval.abs;
+        arr = rval.arr;
         ctr = rval.ctr;
         return *this;
     }
     ~BigInt() {
         if (--*ctr == 0) {
-            delete[] abs;
+            delete[] arr;
             delete ctr;
         }
     }
     operator bool() const {
-        return len || abs[len];
+        return len || arr[len];
     }
-    friend BigInt operator+(BigInt const &lhs, BigInt const &rhs) {
-        size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
-        int8_t *abs = new int8_t[len + 1];
+    friend BigInt operator+(BigInt const &lbi, BigInt const &rbi) {
+        size_t len = (lbi.len > rbi.len ? lbi.len : rbi.len) + 1;
+        int8_t *arr = new int8_t[len + 1];
         int8_t s = 0;
         for (size_t i = 0; i <= len; i++) {
-            s = lhs.get(i) + rhs.get(i) + (s >= 10);
-            abs[i] = s >= 10 ? s - 10 : s;
+            s = lbi.get(i) + rbi.get(i) + (s >= 10);
+            arr[i] = s >= 10 ? s - 10 : s;
         }
-        return BigInt(len, abs);
+        return BigInt(len, arr);
     }
-    friend BigInt operator-(BigInt const &lhs, BigInt const &rhs) {
-        size_t len = (lhs.len > rhs.len ? lhs.len : rhs.len) + 1;
-        int8_t *abs = new int8_t[len + 1];
+    friend BigInt operator-(BigInt const &lbi, BigInt const &rbi) {
+        size_t len = (lbi.len > rbi.len ? lbi.len : rbi.len) + 1;
+        int8_t *arr = new int8_t[len + 1];
         int8_t d = 0;
         for (size_t i = 0; i <= len; i++) {
-            d = lhs.get(i) - rhs.get(i) - (d < 0);
-            abs[i] = d < 0 ? d + 10 : d;
+            d = lbi.get(i) - rbi.get(i) - (d < 0);
+            arr[i] = d < 0 ? d + 10 : d;
         }
-        return BigInt(len, abs);
+        return BigInt(len, arr);
     }
-    friend BigInt operator*(BigInt const &lhs, BigInt const &rhs) {
-        size_t len = lhs.len + rhs.len + 1;
-        int8_t *abs = new int8_t[len + 1]();
+    friend BigInt operator*(BigInt const &lbi, BigInt const &rbi) {
+        size_t len = lbi.len + rbi.len + 1;
+        int8_t *arr = new int8_t[len + 1]();
         for (size_t i = 0; i <= len; i++) {
             int8_t p = 0, s = 0;
             for (size_t j = 0; i + j <= len; j++) {
-                p = lhs.get(j) * rhs.get(i) + p / 10;
-                s = p % 10 + abs[i + j] + (s >= 10);
-                abs[i + j] = s >= 10 ? s - 10 : s;
+                p = lbi.get(j) * rbi.get(i) + p / 10;
+                s = p % 10 + arr[i + j] + (s >= 10);
+                arr[i + j] = s >= 10 ? s - 10 : s;
             }
         }
-        return BigInt(len, abs);
+        return BigInt(len, arr);
     }
     template <bool select>
-    friend BigInt divmod(BigInt const &lhs, BigInt const &rhs) {
-        size_t len = lhs.len + rhs.len;
-        int8_t *pabs = new int8_t[len + 1], *nabs = new int8_t[len + 1];
-        int8_t *qabs = new int8_t[lhs.len + 1];
-        int8_t *rabs = new int8_t[rhs.len + 1];
+    friend BigInt divmod(BigInt const &lbi, BigInt const &rbi) {
+        size_t len = lbi.len + rbi.len;
+        int8_t *parr = new int8_t[len + 1], *narr = new int8_t[len + 1];
+        int8_t *qarr = new int8_t[lbi.len + 1];
+        int8_t *rarr = new int8_t[rbi.len + 1];
         for (size_t i = 0; i <= len; i++) {
-            pabs[i] = lhs.get(i);
+            parr[i] = lbi.get(i);
         }
-        if (lhs.abs[lhs.len] == rhs.abs[rhs.len]) {
-            for (size_t i = lhs.len; i <= lhs.len; i--) {
-                for (qabs[i] = 0;; qabs[i]++) {
+        if (lbi.arr[lbi.len] == rbi.arr[rbi.len]) {
+            for (size_t i = lbi.len; i <= lbi.len; i--) {
+                for (qarr[i] = 0;; qarr[i]++) {
                     int8_t d = 0;
                     for (size_t j = 0; i + j <= len; j++) {
-                        d = pabs[i + j] - rhs.get(j) - (d < 0);
-                        nabs[i + j] = d < 0 ? d + 10 : d;
+                        d = parr[i + j] - rbi.get(j) - (d < 0);
+                        narr[i + j] = d < 0 ? d + 10 : d;
                     }
-                    if (nabs[len] != pabs[len]) {
+                    if (narr[len] != parr[len]) {
                         break;
                     }
                     for (size_t j = 0; i + j <= len; j++) {
-                        pabs[i + j] = nabs[i + j];
+                        parr[i + j] = narr[i + j];
                     }
                 }
             }
-            for (size_t i = 0; i <= rhs.len; i++) {
-                rabs[i] = pabs[i];
+            for (size_t i = 0; i <= rbi.len; i++) {
+                rarr[i] = parr[i];
             }
         } else {
-            for (size_t i = lhs.len; i <= lhs.len; i--) {
-                for (qabs[i] = 9;; qabs[i]--) {
+            for (size_t i = lbi.len; i <= lbi.len; i--) {
+                for (qarr[i] = 9;; qarr[i]--) {
                     int8_t s = 0;
                     for (size_t j = 0; i + j <= len; j++) {
-                        s = pabs[i + j] + rhs.get(j) + (s >= 10);
-                        nabs[i + j] = s >= 10 ? s - 10 : s;
+                        s = parr[i + j] + rbi.get(j) + (s >= 10);
+                        narr[i + j] = s >= 10 ? s - 10 : s;
                     }
-                    if (nabs[len] != pabs[len]) {
+                    if (narr[len] != parr[len]) {
                         break;
                     }
                     for (size_t j = 0; i + j <= len; j++) {
-                        pabs[i + j] = nabs[i + j];
+                        parr[i + j] = narr[i + j];
                     }
                 }
             }
-            for (size_t i = 0; i <= rhs.len; i++) {
-                rabs[i] = nabs[i];
+            for (size_t i = 0; i <= rbi.len; i++) {
+                rarr[i] = narr[i];
             }
         }
-        delete[] pabs;
-        delete[] nabs;
+        delete[] parr;
+        delete[] narr;
         if constexpr (select) {
-            delete[] qabs;
-            return BigInt(rhs.len, rabs);
+            delete[] qarr;
+            return BigInt(rbi.len, rarr);
         } else {
-            delete[] rabs;
-            return BigInt(lhs.len, qabs);
+            delete[] rarr;
+            return BigInt(lbi.len, qarr);
         }
     }
-    friend BigInt operator/(BigInt const &lhs, BigInt const &rhs) {
-        return divmod<0>(lhs, rhs);
+    friend BigInt operator/(BigInt const &lbi, BigInt const &rbi) {
+        return divmod<0>(lbi, rbi);
     }
-    friend BigInt operator%(BigInt const &lhs, BigInt const &rhs) {
-        return divmod<1>(lhs, rhs);
+    friend BigInt operator%(BigInt const &lbi, BigInt const &rbi) {
+        return divmod<1>(lbi, rbi);
     }
     template <auto gt, auto eq, auto lt>
-    friend auto compare(BigInt const &lhs, BigInt const &rhs) {
-        if (lhs.abs[lhs.len] < rhs.abs[rhs.len]) {
+    friend auto compare(BigInt const &lbi, BigInt const &rbi) {
+        if (lbi.arr[lbi.len] < rbi.arr[rbi.len]) {
             return gt;
         }
-        if (lhs.abs[lhs.len] > rhs.abs[rhs.len]) {
+        if (lbi.arr[lbi.len] > rbi.arr[rbi.len]) {
             return lt;
         }
-        for (size_t m = lhs.len > rhs.len ? lhs.len : rhs.len, i = m - 1; i < m; i--) {
-            if (lhs.get(i) > rhs.get(i)) {
+        for (size_t m = lbi.len > rbi.len ? lbi.len : rbi.len, i = m - 1; i < m; i--) {
+            if (lbi.get(i) > rbi.get(i)) {
                 return gt;
             }
-            if (lhs.get(i) < rhs.get(i)) {
+            if (lbi.get(i) < rbi.get(i)) {
                 return lt;
             }
         }
         return eq;
     }
-    friend bool operator>(BigInt const &lhs, BigInt const &rhs) {
-        return compare<true, false, false>(lhs, rhs);
+    friend bool operator>(BigInt const &lbi, BigInt const &rbi) {
+        return compare<true, false, false>(lbi, rbi);
     }
-    friend bool operator<(BigInt const &lhs, BigInt const &rhs) {
-        return compare<false, false, true>(lhs, rhs);
+    friend bool operator<(BigInt const &lbi, BigInt const &rbi) {
+        return compare<false, false, true>(lbi, rbi);
     }
-    friend bool operator>=(BigInt const &lhs, BigInt const &rhs) {
-        return compare<true, true, false>(lhs, rhs);
+    friend bool operator>=(BigInt const &lbi, BigInt const &rbi) {
+        return compare<true, true, false>(lbi, rbi);
     }
-    friend bool operator<=(BigInt const &lhs, BigInt const &rhs) {
-        return compare<false, true, true>(lhs, rhs);
+    friend bool operator<=(BigInt const &lbi, BigInt const &rbi) {
+        return compare<false, true, true>(lbi, rbi);
     }
-    friend bool operator==(BigInt const &lhs, BigInt const &rhs) {
-        return compare<false, true, false>(lhs, rhs);
+    friend bool operator==(BigInt const &lbi, BigInt const &rbi) {
+        return compare<false, true, false>(lbi, rbi);
     }
-    friend bool operator!=(BigInt const &lhs, BigInt const &rhs) {
-        return compare<true, false, true>(lhs, rhs);
+    friend bool operator!=(BigInt const &lbi, BigInt const &rbi) {
+        return compare<true, false, true>(lbi, rbi);
     }
 };
