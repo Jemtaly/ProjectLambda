@@ -107,18 +107,18 @@ static inline std::unordered_map<char, cmp_t> const cmps = {
 };
 class Tree {
     enum TokenIdx: std::size_t {
-        Und, Par,
+        Und,
         Nil, Chk,
-        Int,
+        Par, Int,
         Opr, AOI,
         Cmp, ACI,
         LEF, EEF, // Lazy/Eager-Evaluation Function
         App, Arg, Glb,
     };
     using TokenVar = std::variant<
-        std::nullopt_t, std::string,
+        std::nullopt_t,
         std::monostate, std::monostate,
-        BigInt,
+        std::string, BigInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, BigInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
@@ -289,31 +289,31 @@ class Tree {
             }
         }
     }
-    void analyze(std::unordered_set<std::string> &set) const {
+    void analyze(std::unordered_set<std::string> &rec) const {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
-            fst.analyze(set);
-            snd.analyze(set);
+            fst.analyze(rec);
+            snd.analyze(rec);
         } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
             auto &[par, tmp] = **plef;
-            if (auto const &it = set.find(par); it != set.end()) {
-                tmp.analyze(set);
+            if (auto const &it = rec.find(par); it != rec.end()) {
+                tmp.analyze(rec);
             } else {
-                auto jt = set.insert(par).first;
-                tmp.analyze(set);
-                set.erase(jt);
+                auto jt = rec.insert(par).first;
+                tmp.analyze(rec);
+                rec.erase(jt);
             }
         } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
             auto &[par, tmp] = **peef;
-            if (auto const &it = set.find(par); it != set.end()) {
-                tmp.analyze(set);
+            if (auto const &it = rec.find(par); it != rec.end()) {
+                tmp.analyze(rec);
             } else {
-                auto jt = set.insert(par).first;
-                tmp.analyze(set);
-                set.erase(jt);
+                auto jt = rec.insert(par).first;
+                tmp.analyze(rec);
+                rec.erase(jt);
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
-            if (auto const &it = set.find(*ppar); it == set.end()) {
+            if (auto const &it = rec.find(*ppar); it == rec.end()) {
                 throw std::runtime_error("unbound variable: $" + *ppar);
             }
         }
@@ -358,16 +358,16 @@ public:
     }
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
-        std::unordered_set<std::string> set;
-        res.analyze(set);
+        std::unordered_set<std::string> rec;
+        res.analyze(rec);
         clr_flag();
         res.calc();
         return res;
     }
     static void def(Slice &&exp, std::string const &glb) {
-        std::unordered_set<std::string> set;
+        std::unordered_set<std::string> rec;
         auto res = parse(std::move(exp));
-        res.analyze(set);
+        res.analyze(rec);
         map.insert_or_assign(glb, std::move(res));
     }
     static auto const &dir() {
