@@ -274,33 +274,33 @@ class Tree {
         }
         return *this;
     }
-    void analyze(std::unordered_set<std::string> &rec) {
+    void analyze(std::unordered_set<std::string> &set) {
         if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
             auto &[fst, snd] = *papp;
-            fst.analyze(rec);
-            snd.analyze(rec);
+            fst.analyze(set);
+            snd.analyze(set);
         } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
             auto &[par, tmp] = *plef;
-            if (auto const &it = rec.find(par); it != rec.end()) {
-                tmp.analyze(rec);
+            if (set.find(par) != set.end()) {
+                tmp.analyze(set);
             } else {
-                auto jt = rec.insert(par).first;
-                tmp.analyze(rec);
-                rec.erase(jt);
+                auto pos = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(pos);
             }
         } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
             auto &[par, tmp] = *peef;
-            if (auto const &it = rec.find(par); it != rec.end()) {
-                tmp.analyze(rec);
+            if (set.find(par) != set.end()) {
+                tmp.analyze(set);
             } else {
-                auto jt = rec.insert(par).first;
-                tmp.analyze(rec);
-                rec.erase(jt);
+                auto pos = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(pos);
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
-            if (auto const &it = rec.find(*ppar); it == rec.end()) {
-                if (auto const &pt = map.find(*ppar); pt != map.end()) {
-                    *this = pt->second;
+            if (set.find(*ppar) == set.end()) {
+                if (auto const &itr = map.find(*ppar); itr != map.end()) {
+                    *this = itr->second;
                 } else {
                     throw std::runtime_error("unbound variable: $" + *ppar);
                 }
@@ -337,8 +337,8 @@ public:
     }
     static auto const &put(Slice &&exp, std::string const &par, bool calc) {
         auto res = parse(std::move(exp));
-        std::unordered_set<std::string> rec;
-        res.analyze(rec);
+        std::unordered_set<std::string> set;
+        res.analyze(set);
         map.erase(par);
         if (calc) {
             clr_flag();

@@ -260,8 +260,8 @@ class Tree {
                 *this = shr;
             }
         } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
-            if (auto const &it = map.find(*pglb); it != map.end()) {
-                *this = it->second;
+            if (auto const &itr = map.find(*pglb); itr != map.end()) {
+                *this = itr->second;
                 goto tail_call;
             } else {
                 throw std::runtime_error("undefined symbol: &" + *pglb);
@@ -289,31 +289,31 @@ class Tree {
             }
         }
     }
-    void analyze(std::unordered_set<std::string> &rec) const {
+    void analyze(std::unordered_set<std::string> &set) const {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
-            fst.analyze(rec);
-            snd.analyze(rec);
+            fst.analyze(set);
+            snd.analyze(set);
         } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
             auto &[par, tmp] = **plef;
-            if (auto const &it = rec.find(par); it != rec.end()) {
-                tmp.analyze(rec);
+            if (set.find(par) != set.end()) {
+                tmp.analyze(set);
             } else {
-                auto jt = rec.insert(par).first;
-                tmp.analyze(rec);
-                rec.erase(jt);
+                auto pos = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(pos);
             }
         } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
             auto &[par, tmp] = **peef;
-            if (auto const &it = rec.find(par); it != rec.end()) {
-                tmp.analyze(rec);
+            if (set.find(par) != set.end()) {
+                tmp.analyze(set);
             } else {
-                auto jt = rec.insert(par).first;
-                tmp.analyze(rec);
-                rec.erase(jt);
+                auto pos = set.insert(par).first;
+                tmp.analyze(set);
+                set.erase(pos);
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
-            if (auto const &it = rec.find(*ppar); it == rec.end()) {
+            if (set.find(*ppar) == set.end()) {
                 throw std::runtime_error("unbound variable: $" + *ppar);
             }
         }
@@ -358,16 +358,16 @@ public:
     }
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
-        std::unordered_set<std::string> rec;
-        res.analyze(rec);
+        std::unordered_set<std::string> set;
+        res.analyze(set);
         clr_flag();
         res.calc();
         return res;
     }
     static void def(Slice &&exp, std::string const &glb) {
-        std::unordered_set<std::string> rec;
+        std::unordered_set<std::string> set;
         auto res = parse(std::move(exp));
-        res.analyze(rec);
+        res.analyze(set);
         map.insert_or_assign(glb, std::move(res));
     }
     static auto const &dir() {
