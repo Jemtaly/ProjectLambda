@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import argparse
+import sys
+import subprocess
 def bf2instrs(bf, pf, ml = False):
     ind, sp, end = ('    ', '\n', '\n') if ml else ('', ' ', '')
     cnt = 0
@@ -20,7 +23,6 @@ def enc(s):
 def dec(l):
     return ''.join(chr(int(x)) for x in l.split(' ')[-2::-3])
 def main():
-    import argparse, sys
     ap = argparse.ArgumentParser()
     ap.add_argument('input', nargs = '?', type = argparse.FileType('r'), default = sys.stdin)
     ap.add_argument('-o', '--output', type = argparse.FileType('w'), default = sys.stdout)
@@ -30,7 +32,6 @@ def main():
     args = ap.parse_args()
     args.output.write(bf2instrs(args.input.read(), args.prefix, True))
 def test():
-    import argparse, sys, subprocess
     ap = argparse.ArgumentParser()
     ap.add_argument('bf', type = argparse.FileType('r'))
     ap.add_argument('-i', '--input', type = argparse.FileType('r'), default = sys.stdin)
@@ -43,7 +44,7 @@ def test():
     l = open(f'bf_{args.choice}.λ').read()
     l += f':fun {bf2instrs(args.bf.read(), pf)}\n'
     l += f':input {enc(args.input.read())}\n'
-    l += f'\ncal {pf}run {pf}fun {pf}input\n'
+    l += f'cal {pf}run {pf}fun {pf}input\n'
     args.output.write(dec(subprocess.check_output([f'../build/lambda_{args.choice}'], input = l.encode()).decode()))
 if __name__ == '__main__':
     test()
