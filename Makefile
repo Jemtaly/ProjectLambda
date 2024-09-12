@@ -31,7 +31,7 @@ else
 endif
 .PHONY: all clean
 all: $(TARGET)
-$(TARGET): $(SOURCE)
+$(TARGET) : $(SOURCE)
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 clean:

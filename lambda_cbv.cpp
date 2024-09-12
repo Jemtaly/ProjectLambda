@@ -1,61 +1,74 @@
+#include <cassert>
 #include <iomanip>
 #include <iostream>
-#include <optional>
-#include <variant>
-#include <cassert>
-#include <string>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <stack>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <variant>
+
 #include "container.hpp"
 #include "slice.hpp"
+
 #ifndef USE_GMP
-#include "bigint_nat.hpp" // native big integer
+#include "bigint_nat.hpp"  // native big integer
 #else
-#include "bigint_gmp.hpp" // GNU MP big integer
+#include "bigint_gmp.hpp"  // GNU MP big integer
 #endif
+
 #if defined _WIN32
 #include <Windows.h>
 #elif defined __unix__
-#include <unistd.h>
 #include <signal.h>
 #include <sys/resource.h>
+#include <unistd.h>
 #endif
+
 #ifndef STACK_SIZE
-#define STACK_SIZE 8388608 // 8 MiB
+#define STACK_SIZE 8388608  // 8 MiB
 #endif
+
 char *stack_top;
 char *stack_cur;
+
 void ini_stack() {
     char dummy;
     stack_top = &dummy;
 }
+
 bool chk_stack() {
     char dummy;
     stack_cur = &dummy;
     return stack_top - stack_cur >= STACK_SIZE / 2;
 }
+
 #if defined _WIN32
 void clr_flag() {
     GetAsyncKeyState(VK_ESCAPE);
 }
+
 bool chk_flag() {
     return GetAsyncKeyState(VK_ESCAPE) & 0x0001;
 }
 #elif defined __unix__
 bool flag_rec;
+
 void set_flag(int) {
     flag_rec = 1;
 }
+
 void clr_flag() {
     flag_rec = 0;
 }
+
 bool chk_flag() {
     return flag_rec;
 }
 #endif
+
 auto read(Slice &exp) {
     auto i = exp.get_beg();
     auto n = exp.get_end();
@@ -80,6 +93,7 @@ auto read(Slice &exp) {
         }
     }
 }
+
 BigInt operator+(BigInt const &lval, BigInt const &rval);
 BigInt operator-(BigInt const &lval, BigInt const &rval);
 BigInt operator*(BigInt const &lval, BigInt const &rval);
@@ -91,30 +105,36 @@ bool operator>=(BigInt const &lval, BigInt const &rval);
 bool operator<=(BigInt const &lval, BigInt const &rval);
 bool operator==(BigInt const &lval, BigInt const &rval);
 bool operator!=(BigInt const &lval, BigInt const &rval);
+
 typedef BigInt (*opr_t)(BigInt const &, BigInt const &);
 typedef bool (*cmp_t)(BigInt const &, BigInt const &);
+
 static inline std::unordered_map<char, opr_t> const oprs = {
-    {'+', operator+},
-    {'-', operator-},
-    {'*', operator*},
-    {'/', operator/},
-    {'%', operator%},
+    {'+', operator+ },
+    {'-', operator- },
+    {'*', operator* },
+    {'/', operator/ },
+    {'%', operator% },
 };
+
 static inline std::unordered_map<char, cmp_t> const cmps = {
-    {'>', operator>},
+    {'>', operator> },
     {'<', operator<},
-    {'=', operator==},
+    {'=', operator== },
 };
+
 class Tree {
-    enum TokenIdx: std::size_t {
+    enum TokenIdx : std::size_t {
         Und,
         Nil, Chk,
         Par, Int,
         Opr, AOI,
         Cmp, ACI,
-        LEF, EEF, // Lazy/Eager-Evaluation Function
-        App, Arg, Glb,
+        LEF, EEF,  // Lazy/Eager-Evaluation Function
+        App, Arg,
+        Glb,
     };
+
     using TokenVar = std::variant<
         std::nullopt_t,
         std::monostate, std::monostate,
@@ -122,10 +142,14 @@ class Tree {
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, BigInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
         Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
-        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>, std::string>;
+        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
+        std::string>;
     TokenVar token;
-    template <typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
-    Tree(Args &&...args): token(std::forward<Args>(args)...) {}
+
+    template<typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
+    Tree(Args &&...args)
+        : token(std::forward<Args>(args)...) {}
+
     static Tree first(Tree &&fst) {
         if (fst.token.index() == TokenIdx::Und) {
             throw std::runtime_error("empty expression");
@@ -133,6 +157,7 @@ class Tree {
             return std::move(fst);
         }
     }
+
     static Tree build(Tree &&fst, Tree &&snd) {
         if (fst.token.index() == TokenIdx::Und) {
             return std::move(snd);
@@ -140,6 +165,7 @@ class Tree {
             return Box<std::pair<Tree, Tree>>::make(std::move(fst), std::move(snd));
         }
     }
+
     static Tree parse(Slice &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
@@ -155,6 +181,7 @@ class Tree {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
     }
+
     static Tree lex(Slice const &sym) {
         if (sym[0] == '(' && sym[-1] == ')') {
             return parse(sym(1, -1));
@@ -170,15 +197,18 @@ class Tree {
             return Tree(std::in_place_index<TokenIdx::Opr>, *o);
         } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
             return Tree(std::in_place_index<TokenIdx::Cmp>, *c);
-        } else try {
-            return Tree(std::in_place_index<TokenIdx::Int>, BigInt::from_string(sym));
-        } catch (...) {
-            throw std::runtime_error("invalid symbol: " + std::string(sym));
+        } else {
+            try {
+                return Tree(std::in_place_index<TokenIdx::Int>, BigInt::from_string(sym));
+            } catch (...) {
+                throw std::runtime_error("invalid symbol: " + std::string(sym));
+            }
         }
     }
+
     void calc() {
-        static const auto T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
-        static const auto F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
+        static auto const T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
+        static auto const F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
         if (chk_stack()) {
             throw std::runtime_error("recursion limit exceeded");
         }
@@ -268,6 +298,7 @@ class Tree {
             }
         }
     }
+
     void substitute(std::shared_ptr<std::pair<Tree, bool>> const &arg, std::string const &tar) {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
@@ -289,6 +320,7 @@ class Tree {
             }
         }
     }
+
     void analyze(std::unordered_set<std::string> &set) const {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
@@ -318,18 +350,26 @@ class Tree {
             }
         }
     }
+
     static inline std::unordered_map<std::string, Tree> map;
+
 public:
-    Tree(Tree const &other): token(other.token) {}
+    Tree(Tree const &other)
+        : token(other.token) {}
+
     Tree &operator=(Tree const &other) {
         token = other.token;
         return *this;
     }
-    Tree(Tree &&other): token(std::exchange(other.token, std::nullopt)) {}
+
+    Tree(Tree &&other)
+        : token(std::exchange(other.token, std::nullopt)) {}
+
     Tree &operator=(Tree &&other) {
         token = std::exchange(other.token, std::nullopt);
         return *this;
     }
+
     ~Tree() {
         if (token.index() == TokenIdx::Und) {
             return;
@@ -356,6 +396,7 @@ public:
             }
         }
     }
+
     static auto cal(Slice &&exp) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
@@ -364,18 +405,22 @@ public:
         res.calc();
         return res;
     }
+
     static void def(Slice &&exp, std::string const &glb) {
         std::unordered_set<std::string> set;
         auto res = parse(std::move(exp));
         res.analyze(set);
         map.insert_or_assign(glb, std::move(res));
     }
+
     static auto const &dir() {
         return map;
     }
+
     static void clr() {
         return map.clear();
     }
+
     std::string translate(bool lb = 0, bool rb = 0) const {
         if (auto pnil = std::get_if<TokenIdx::Nil>(&token)) {
             return "...";
@@ -412,15 +457,17 @@ public:
         } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
             return "&" + *pglb;
         } else {
-            assert(false); // unreachable
+            assert(false);  // unreachable
         }
     }
 };
+
 int main(int argc, char *argv[]) {
     ini_stack();
     bool check_stdin = false;
     bool check_stdout = false;
     bool check_stderr = false;
+
 #if defined _WIN32
     DWORD dwModeTemp;
     check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
@@ -430,16 +477,19 @@ int main(int argc, char *argv[]) {
     check_stdin = isatty(fileno(stdin));
     check_stdout = isatty(fileno(stdout));
     check_stderr = isatty(fileno(stderr));
+    // set stack size
     struct rlimit rlim;
     getrlimit(RLIMIT_STACK, &rlim);
     rlim.rlim_cur = STACK_SIZE;
     setrlimit(RLIMIT_STACK, &rlim);
+    // set signal handler
     struct sigaction act;
     act.sa_handler = set_flag;
     sigemptyset(&act.sa_mask);
-    act.sa_flags = 0; // use SA_RESTART to avoid getting EOF when SIGINT is received during input
+    act.sa_flags = 0;  // use SA_RESTART to avoid getting EOF when SIGINT is received during input
     sigaction(SIGINT, &act, NULL);
 #endif
+
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
     std::string ps_res = check_stderr && check_stdout ? "== " : "";

@@ -1,20 +1,27 @@
 #pragma once
+
 #include <stdint.h>
-#include <string>
 #include <stdexcept>
+#include <string>
+
 class BigInt {
     size_t len;
     int8_t const *arr;
     size_t *ctr;
+
     int8_t get(size_t i) const {
         return arr[i < len ? i : len];
     }
-    BigInt(size_t rlen, int8_t const *rarr):
-        len(rlen), arr(rarr), ctr(new size_t(1)) {
+
+    BigInt(size_t rlen, int8_t const *rarr)
+        : len(rlen)
+        , arr(rarr)
+        , ctr(new size_t(1)) {
         while (len && arr[len - 1] == arr[len]) {
             len--;
         }
     }
+
 public:
     static BigInt from_string(std::string_view sv) {
         auto itr = sv.rbegin(), end = sv.rend();
@@ -48,8 +55,9 @@ public:
         }
         return BigInt(len, arr);
     }
+
     std::string to_string() const {
-        char str[len + 2]; // GCC and Clang variable length array extension
+        char str[len + 2];  // GCC and Clang variable length array extension
         char *itr = &str[len + 2], *end = &str[len + 2];
         if (arr[len]) {
             bool flag = true;
@@ -72,10 +80,14 @@ public:
         }
         return std::string(itr, end);
     }
-    BigInt(BigInt const &rval):
-        len(rval.len), arr(rval.arr), ctr(rval.ctr) {
+
+    BigInt(BigInt const &rval)
+        : len(rval.len)
+        , arr(rval.arr)
+        , ctr(rval.ctr) {
         ++*ctr;
     }
+
     BigInt &operator=(BigInt const &rval) {
         ++*rval.ctr;
         if (--*ctr == 0) {
@@ -87,15 +99,18 @@ public:
         ctr = rval.ctr;
         return *this;
     }
+
     ~BigInt() {
         if (--*ctr == 0) {
             delete[] arr;
             delete ctr;
         }
     }
+
     operator bool() const {
         return len || arr[len];
     }
+
     friend BigInt operator+(BigInt const &lbi, BigInt const &rbi) {
         size_t len = (lbi.len > rbi.len ? lbi.len : rbi.len) + 1;
         int8_t *arr = new int8_t[len + 1];
@@ -106,6 +121,7 @@ public:
         }
         return BigInt(len, arr);
     }
+
     friend BigInt operator-(BigInt const &lbi, BigInt const &rbi) {
         size_t len = (lbi.len > rbi.len ? lbi.len : rbi.len) + 1;
         int8_t *arr = new int8_t[len + 1];
@@ -116,6 +132,7 @@ public:
         }
         return BigInt(len, arr);
     }
+
     friend BigInt operator*(BigInt const &lbi, BigInt const &rbi) {
         size_t len = lbi.len + rbi.len + 1;
         int8_t *arr = new int8_t[len + 1]();
@@ -129,7 +146,8 @@ public:
         }
         return BigInt(len, arr);
     }
-    template <bool select>
+
+    template<bool select>
     friend BigInt divmod(BigInt const &lbi, BigInt const &rbi) {
         size_t len = lbi.len + rbi.len;
         int8_t *parr = new int8_t[len + 1], *narr = new int8_t[len + 1];
@@ -187,13 +205,16 @@ public:
             return BigInt(lbi.len, qarr);
         }
     }
+
     friend BigInt operator/(BigInt const &lbi, BigInt const &rbi) {
         return divmod<0>(lbi, rbi);
     }
+
     friend BigInt operator%(BigInt const &lbi, BigInt const &rbi) {
         return divmod<1>(lbi, rbi);
     }
-    template <auto gt, auto eq, auto lt>
+
+    template<auto gt, auto eq, auto lt>
     friend auto compare(BigInt const &lbi, BigInt const &rbi) {
         if (lbi.arr[lbi.len] < rbi.arr[rbi.len]) {
             return gt;
@@ -211,21 +232,27 @@ public:
         }
         return eq;
     }
+
     friend bool operator>(BigInt const &lbi, BigInt const &rbi) {
         return compare<true, false, false>(lbi, rbi);
     }
+
     friend bool operator<(BigInt const &lbi, BigInt const &rbi) {
         return compare<false, false, true>(lbi, rbi);
     }
+
     friend bool operator>=(BigInt const &lbi, BigInt const &rbi) {
         return compare<true, true, false>(lbi, rbi);
     }
+
     friend bool operator<=(BigInt const &lbi, BigInt const &rbi) {
         return compare<false, true, true>(lbi, rbi);
     }
+
     friend bool operator==(BigInt const &lbi, BigInt const &rbi) {
         return compare<false, true, false>(lbi, rbi);
     }
+
     friend bool operator!=(BigInt const &lbi, BigInt const &rbi) {
         return compare<true, false, true>(lbi, rbi);
     }
