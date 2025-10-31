@@ -1,16 +1,14 @@
 #include <cassert>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <queue>
-#include <stack>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
-
-#include "slice.hpp"
 
 #ifndef USE_GMP
 #include "bigint_nat.hpp"  // native big integer
@@ -26,22 +24,27 @@
 #include <unistd.h>
 #endif
 
-#ifndef STACK_SIZE
-#define STACK_SIZE 8388608  // 8 MiB
+struct StreamStatus {
+    bool check_stdin;
+    bool check_stdout;
+    bool check_stderr;
+};
+
+StreamStatus io_check() {
+    bool check_stdin = false;
+    bool check_stdout = false;
+    bool check_stderr = false;
+#if defined _WIN32
+    DWORD dwModeTemp;
+    check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
+    check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
+    check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
+#elif defined __unix__
+    check_stdin = isatty(fileno(stdin));
+    check_stdout = isatty(fileno(stdout));
+    check_stderr = isatty(fileno(stderr));
 #endif
-
-char *stack_top;
-char *stack_cur;
-
-void ini_stack() {
-    char dummy;
-    stack_top = &dummy;
-}
-
-bool chk_stack() {
-    char dummy;
-    stack_cur = &dummy;
-    return stack_top - stack_cur >= STACK_SIZE / 2;
+    return {check_stdin, check_stdout, check_stderr};
 }
 
 #if defined _WIN32
@@ -66,28 +69,41 @@ void clr_flag() {
 bool chk_flag() {
     return flag_rec;
 }
+
+__attribute__((constructor)) void set_signal() {
+    // set signal handler
+    struct sigaction act;
+    act.sa_handler = set_flag;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;  // use SA_RESTART to avoid getting EOF when SIGINT is received during input
+    sigaction(SIGINT, &act, NULL);
+}
 #endif
 
-auto read(Slice &exp) {
-    auto i = exp.get_beg();
-    auto n = exp.get_end();
+std::string_view read(std::string_view &exp) {
+    size_t i = 0;
+    size_t n = exp.size();
     for (;; i++) {
         if (i == n) {
-            return exp.reset_to(i, n), exp.from_to(i, i);
-        } else if (*i != ' ') {
+            auto res = exp.substr(i, n - i);
+            exp.remove_prefix(i);
+            return res;
+        } else if (exp[i] != ' ') {
             break;
         }
     }
-    auto j = i;
-    auto c = 0;
+    size_t j = i;
+    size_t c = 0;
     for (;; i++) {
-        if ((i == n || *i == ' ') && c == 0) {
-            return exp.reset_to(i, n), exp.from_to(j, i);
+        if ((i == n || exp[i] == ' ') && c == 0) {
+            auto res = exp.substr(j, i - j);
+            exp.remove_prefix(i);
+            return res;
         } else if (i == n) {
             throw std::runtime_error("mismatched parentheses");
-        } else if (*i == '(') {
+        } else if (exp[i] == '(') {
             c++;
-        } else if (*i == ')') {
+        } else if (exp[i] == ')') {
             c--;
         }
     }
@@ -109,17 +125,17 @@ typedef BigInt (*opr_t)(BigInt const &, BigInt const &);
 typedef bool (*cmp_t)(BigInt const &, BigInt const &);
 
 static inline std::unordered_map<char, opr_t> const oprs = {
-    {'+', operator+ },
-    {'-', operator- },
-    {'*', operator* },
-    {'/', operator/ },
-    {'%', operator% },
+    {'+', operator+},
+    {'-', operator-},
+    {'*', operator*},
+    {'/', operator/},
+    {'%', operator%},
 };
 
 static inline std::unordered_map<char, cmp_t> const cmps = {
-    {'>', operator> },
+    {'>', operator>},
     {'<', operator<},
-    {'=', operator== },
+    {'=', operator==},
 };
 
 class Tree {
@@ -138,14 +154,15 @@ class Tree {
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
         std::pair<std::string, Tree>, std::pair<std::string, Tree>,
         std::pair<Tree, Tree>>;
-    std::shared_ptr<TokenVar> sp;
-    bool lb;
+
+    std::shared_ptr<TokenVar> pnode;
+    bool is_context_free;
 
     Tree(TokenVar *ptr)
-        : sp(ptr), lb(0) {}
+        : pnode(ptr), is_context_free(0) {}
 
     static Tree first(Tree &&fst) {
-        if (fst.sp == nullptr) {
+        if (fst.pnode == nullptr) {
             throw std::runtime_error("empty expression");
         } else {
             return std::move(fst);
@@ -153,41 +170,43 @@ class Tree {
     }
 
     static Tree build(Tree &&fst, Tree &&snd) {
-        if (fst.sp == nullptr) {
+        if (fst.pnode == nullptr) {
             return std::move(snd);
         } else {
             return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(fst), std::move(snd));
         }
     }
 
-    static Tree parse(Slice &&exp, Tree &&fun = nullptr, Tree &&fst = nullptr) {
+    static Tree parse(std::string_view &&exp, Tree &&fun = nullptr, Tree &&fst = nullptr) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
-        } else if (sym[0] == '\\') {
-            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym(1, 0), parse(std::move(exp)))));
-        } else if (sym[0] == '|') {
-            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym(1, 0), build(std::move(fun), first(std::move(fst)))));
-        } else if (sym[0] == '^') {
-            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym(1, 0), parse(std::move(exp)))));
-        } else if (sym[0] == '@') {
-            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym(1, 0), build(std::move(fun), first(std::move(fst)))));
+        } else if (sym.front() == '\\') {
+            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym.substr(1), parse(std::move(exp)))));
+        } else if (sym.front() == '|') {
+            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::LEF>, sym.substr(1), build(std::move(fun), first(std::move(fst)))));
+        } else if (sym.front() == '^') {
+            return build(std::move(fun), build(std::move(fst), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym.substr(1), parse(std::move(exp)))));
+        } else if (sym.front() == '@') {
+            return parse(std::move(exp), new TokenVar(std::in_place_index<TokenIdx::EEF>, sym.substr(1), build(std::move(fun), first(std::move(fst)))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
     }
 
-    static Tree lex(Slice const &sym) {
-        if (sym[0] == '(' && sym[-1] == ')') {
-            return parse(sym(1, -1));
-        } else if (sym[0] == '$') {
-            return new TokenVar(std::in_place_index<TokenIdx::Par>, sym(1, 0));
+    static Tree lex(std::string_view &&sym) {
+        if (sym.front() == '(' && sym.back() == ')') {
+            sym.remove_prefix(1);
+            sym.remove_suffix(1);
+            return parse(std::move(sym));
+        } else if (sym.front() == '$') {
+            return new TokenVar(std::in_place_index<TokenIdx::Par>, sym.substr(1));
         } else if (sym.size() == 3 && sym == "...") {
             return new TokenVar(std::in_place_index<TokenIdx::Nil>);
         } else if (sym.size() == 1 && sym == "?") {
             return new TokenVar(std::in_place_index<TokenIdx::Chk>);
-        } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
+        } else if (auto const &o = oprs.find(sym.front()); sym.size() == 1 && o != oprs.end()) {
             return new TokenVar(std::in_place_index<TokenIdx::Opr>, *o);
-        } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
+        } else if (auto const &c = cmps.find(sym.front()); sym.size() == 1 && c != cmps.end()) {
             return new TokenVar(std::in_place_index<TokenIdx::Cmp>, *c);
         } else {
             try {
@@ -198,69 +217,69 @@ class Tree {
         }
     }
 
-    void calc() {
+    void calc(size_t stack_depth) {
         static auto const T = Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "T", Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "F", Tree(new TokenVar(std::in_place_index<TokenIdx::Par>, "T"))))));
         static auto const F = Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "T", Tree(new TokenVar(std::in_place_index<TokenIdx::LEF>, "F", Tree(new TokenVar(std::in_place_index<TokenIdx::Par>, "F"))))));
         static auto const N = Tree(new TokenVar(std::in_place_index<TokenIdx::Nil>));
-        if (chk_stack()) {
+        if (stack_depth++ > 65536) {
             throw std::runtime_error("recursion limit exceeded");
         }
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
-        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+        if (auto papp = std::get_if<TokenIdx::App>(pnode.get())) {
             auto &[fst, snd] = *papp;
-            fst.calc();
-            snd.lb = 1;
-            if (auto pnil = std::get_if<TokenIdx::Nil>(fst.sp.get())) {
-                *sp = *N.sp;
-            } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.sp.get())) {
-                snd.calc();
-                *sp = snd.sp->index() == TokenIdx::Nil ? *F.sp : *T.sp;
-            } else if (auto plef = std::get_if<TokenIdx::LEF>(fst.sp.get())) {
+            fst.calc(stack_depth);
+            snd.is_context_free = 1;
+            if (auto pnil = std::get_if<TokenIdx::Nil>(fst.pnode.get())) {
+                *pnode = *N.pnode;
+            } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                *pnode = snd.pnode->index() == TokenIdx::Nil ? *F.pnode : *T.pnode;
+            } else if (auto plef = std::get_if<TokenIdx::LEF>(fst.pnode.get())) {
                 auto &[par, tmp] = *plef;
                 auto tsb = tmp.substitute(snd, par);
-                tsb.calc();
-                *sp = *tsb.sp;
-            } else if (auto peef = std::get_if<TokenIdx::EEF>(fst.sp.get())) {
-                snd.calc();
+                tsb.calc(stack_depth);
+                *pnode = *tsb.pnode;
+            } else if (auto peef = std::get_if<TokenIdx::EEF>(fst.pnode.get())) {
+                snd.calc(stack_depth);
                 auto &[par, tmp] = *peef;
                 auto tsb = tmp.substitute(snd, par);
-                tsb.calc();
-                *sp = *tsb.sp;
-            } else if (auto popr = std::get_if<TokenIdx::Opr>(fst.sp.get())) {
-                snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get()); pint && (*pint || popr->first != '/' && popr->first != '%')) {
-                    *sp = std::make_pair(*popr, *pint);
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
-                    *sp = *N.sp;
+                tsb.calc(stack_depth);
+                *pnode = *tsb.pnode;
+            } else if (auto popr = std::get_if<TokenIdx::Opr>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.pnode.get()); pint && (*pint || popr->first != '/' && popr->first != '%')) {
+                    *pnode = std::make_pair(*popr, *pint);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.pnode.get())) {
+                    *pnode = *N.pnode;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(fst.sp.get())) {
-                snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
-                    *sp = std::make_pair(*pcmp, *pint);
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
-                    *sp = *N.sp;
+            } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.pnode.get())) {
+                    *pnode = std::make_pair(*pcmp, *pint);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.pnode.get())) {
+                    *pnode = *N.pnode;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto paoi = std::get_if<TokenIdx::AOI>(fst.sp.get())) {
-                snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
-                    *sp = paoi->first.second(*pint, paoi->second);
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
-                    *sp = *N.sp;
+            } else if (auto paoi = std::get_if<TokenIdx::AOI>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.pnode.get())) {
+                    *pnode = paoi->first.second(*pint, paoi->second);
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.pnode.get())) {
+                    *pnode = *N.pnode;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
-            } else if (auto paci = std::get_if<TokenIdx::ACI>(fst.sp.get())) {
-                snd.calc();
-                if (auto pint = std::get_if<TokenIdx::Int>(snd.sp.get())) {
-                    *sp = paci->first.second(*pint, paci->second) ? *T.sp : *F.sp;
-                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.sp.get())) {
-                    *sp = *N.sp;
+            } else if (auto paci = std::get_if<TokenIdx::ACI>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                if (auto pint = std::get_if<TokenIdx::Int>(snd.pnode.get())) {
+                    *pnode = paci->first.second(*pint, paci->second) ? *T.pnode : *F.pnode;
+                } else if (auto pnil = std::get_if<TokenIdx::Nil>(snd.pnode.get())) {
+                    *pnode = *N.pnode;
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
@@ -271,33 +290,33 @@ class Tree {
     }
 
     Tree substitute(Tree const &arg, std::string const &tar) {
-        if (lb) {
+        if (is_context_free) {
             return *this;
         }
-        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+        if (auto papp = std::get_if<TokenIdx::App>(pnode.get())) {
             auto &[fst, snd] = *papp;
             auto fsb = fst.substitute(arg, tar);
             auto ssb = snd.substitute(arg, tar);
-            if (fsb.sp != fst.sp || ssb.sp != snd.sp) {
+            if (fsb.pnode != fst.pnode || ssb.pnode != snd.pnode) {
                 return new TokenVar(std::in_place_index<TokenIdx::App>, std::move(fsb), std::move(ssb));
             }
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(pnode.get())) {
             auto &[par, tmp] = *plef;
             if (par != tar) {
                 auto tsb = tmp.substitute(arg, tar);
-                if (tsb.sp != tmp.sp) {
+                if (tsb.pnode != tmp.pnode) {
                     return new TokenVar(std::in_place_index<TokenIdx::LEF>, par, std::move(tsb));
                 }
             }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(pnode.get())) {
             auto &[par, tmp] = *peef;
             if (par != tar) {
                 auto tsb = tmp.substitute(arg, tar);
-                if (tsb.sp != tmp.sp) {
+                if (tsb.pnode != tmp.pnode) {
                     return new TokenVar(std::in_place_index<TokenIdx::EEF>, par, std::move(tsb));
                 }
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(pnode.get())) {
             if (*ppar == tar) {
                 return arg;
             }
@@ -306,11 +325,11 @@ class Tree {
     }
 
     void analyze(std::unordered_set<std::string> &set) {
-        if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+        if (auto papp = std::get_if<TokenIdx::App>(pnode.get())) {
             auto &[fst, snd] = *papp;
             fst.analyze(set);
             snd.analyze(set);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(pnode.get())) {
             auto &[par, tmp] = *plef;
             if (set.find(par) != set.end()) {
                 tmp.analyze(set);
@@ -319,7 +338,7 @@ class Tree {
                 tmp.analyze(set);
                 set.erase(pos);
             }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(pnode.get())) {
             auto &[par, tmp] = *peef;
             if (set.find(par) != set.end()) {
                 tmp.analyze(set);
@@ -328,7 +347,7 @@ class Tree {
                 tmp.analyze(set);
                 set.erase(pos);
             }
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(pnode.get())) {
             if (set.find(*ppar) == set.end()) {
                 if (auto const &itr = map.find(*ppar); itr != map.end()) {
                     *this = itr->second;
@@ -348,38 +367,38 @@ public:
     Tree &operator=(Tree &&) = default;
 
     ~Tree() {
-        if (sp == nullptr) {
+        if (pnode == nullptr) {
             return;
         }
         std::queue<std::shared_ptr<TokenVar>> flat;
-        flat.push(std::move(sp));
+        flat.push(std::move(pnode));
         for (; not flat.empty(); flat.pop()) {
             if (auto &sp = flat.front(); sp.use_count() == 1) {
                 if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
                     auto &[fst, snd] = *papp;
-                    flat.push(std::move(fst.sp));
-                    flat.push(std::move(snd.sp));
+                    flat.push(std::move(fst.pnode));
+                    flat.push(std::move(snd.pnode));
                 } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
                     auto &[par, tmp] = *plef;
-                    flat.push(std::move(tmp.sp));
+                    flat.push(std::move(tmp.pnode));
                 } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
                     auto &[par, tmp] = *peef;
-                    flat.push(std::move(tmp.sp));
+                    flat.push(std::move(tmp.pnode));
                 }
             }
         }
     }
 
-    static auto const &put(Slice &&exp, std::string const &par, bool calc) {
+    static auto const &put(std::string_view &&exp, std::string &&par, bool calc) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
         res.analyze(set);
         map.erase(par);
         if (calc) {
             clr_flag();
-            res.calc();
+            res.calc(0);
         }
-        return map.emplace(par, res).first->second;
+        return map.emplace(std::move(par), res).first->second;
     }
 
     static auto const &dir() {
@@ -391,35 +410,35 @@ public:
     }
 
     std::string translate(bool lb = 0, bool rb = 0) const {
-        if (auto pnil = std::get_if<TokenIdx::Nil>(sp.get())) {
+        if (auto pnil = std::get_if<TokenIdx::Nil>(pnode.get())) {
             return "...";
-        } else if (auto pchk = std::get_if<TokenIdx::Chk>(sp.get())) {
+        } else if (auto pchk = std::get_if<TokenIdx::Chk>(pnode.get())) {
             return "?";
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(sp.get())) {
+        } else if (auto plef = std::get_if<TokenIdx::LEF>(pnode.get())) {
             auto &[par, tmp] = *plef;
             auto s = "\\" + par + " " + tmp.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(sp.get())) {
+        } else if (auto peef = std::get_if<TokenIdx::EEF>(pnode.get())) {
             auto &[par, tmp] = *peef;
             auto s = "^" + par + " " + tmp.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
-        } else if (auto pint = std::get_if<TokenIdx::Int>(sp.get())) {
+        } else if (auto pint = std::get_if<TokenIdx::Int>(pnode.get())) {
             return pint->to_string();
-        } else if (auto popr = std::get_if<TokenIdx::Opr>(sp.get())) {
+        } else if (auto popr = std::get_if<TokenIdx::Opr>(pnode.get())) {
             return std::string{popr->first};
-        } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(sp.get())) {
+        } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(pnode.get())) {
             return std::string{pcmp->first};
-        } else if (auto paoi = std::get_if<TokenIdx::AOI>(sp.get())) {
+        } else if (auto paoi = std::get_if<TokenIdx::AOI>(pnode.get())) {
             auto s = std::string{paoi->first.first, ' '} + paoi->second.to_string();
             return lb ? "(" + s + ")" : s;
-        } else if (auto paci = std::get_if<TokenIdx::ACI>(sp.get())) {
+        } else if (auto paci = std::get_if<TokenIdx::ACI>(pnode.get())) {
             auto s = std::string{paci->first.first, ' '} + paci->second.to_string();
             return lb ? "(" + s + ")" : s;
-        } else if (auto papp = std::get_if<TokenIdx::App>(sp.get())) {
+        } else if (auto papp = std::get_if<TokenIdx::App>(pnode.get())) {
             auto &[fst, snd] = *papp;
             auto s = fst.translate(lb && !lb, 1) + " " + snd.translate(1, rb && !lb);
             return lb ? "(" + s + ")" : s;
-        } else if (auto ppar = std::get_if<TokenIdx::Par>(sp.get())) {
+        } else if (auto ppar = std::get_if<TokenIdx::Par>(pnode.get())) {
             return "$" + *ppar;
         } else {
             assert(false);  // unreachable
@@ -428,39 +447,15 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-    ini_stack();
-    bool check_stdin = false;
-    bool check_stdout = false;
-    bool check_stderr = false;
-
-#if defined _WIN32
-    DWORD dwModeTemp;
-    check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
-    check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
-    check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
-#elif defined __unix__
-    check_stdin = isatty(fileno(stdin));
-    check_stdout = isatty(fileno(stdout));
-    check_stderr = isatty(fileno(stderr));
-    // set stack size
-    struct rlimit rlim;
-    getrlimit(RLIMIT_STACK, &rlim);
-    rlim.rlim_cur = STACK_SIZE;
-    setrlimit(RLIMIT_STACK, &rlim);
-    // set signal handler
-    struct sigaction act;
-    act.sa_handler = set_flag;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;  // use SA_RESTART to avoid getting EOF when SIGINT is received during input
-    sigaction(SIGINT, &act, NULL);
-#endif
-
+    auto const [check_stdin, check_stdout, check_stderr] = io_check();
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
     std::string ps_res = check_stderr && check_stdout ? "== " : "";
     for (bool end = false; not end;) {
         std::cerr << ps_in;
-        Slice exp = Slice::getline(std::cin);
+        std::string buf;
+        std::getline(std::cin, buf);
+        std::string_view exp = buf;
         if (std::cin.eof()) {
             end = true;
             if (check_stderr && check_stdin) {
@@ -470,8 +465,8 @@ int main(int argc, char *argv[]) {
         try {
             if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
-            } else if (cmd[0] == ':') {
-                Tree::put(std::move(exp), cmd(1, 0), 0);
+            } else if (cmd.front() == ':') {
+                Tree::put(std::move(exp), std::string(cmd.substr(1)), 0);
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto &res = Tree::put(std::move(exp), "", 1);
                 std::cerr << ps_res;

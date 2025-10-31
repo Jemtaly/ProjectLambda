@@ -88,15 +88,10 @@ public:
         ++*ctr;
     }
 
-    BigInt &operator=(BigInt const &rval) {
-        ++*rval.ctr;
-        if (--*ctr == 0) {
-            delete[] arr;
-            delete ctr;
-        }
-        len = rval.len;
-        arr = rval.arr;
-        ctr = rval.ctr;
+    BigInt &operator=(BigInt rval) {
+        std::swap(this->len, rval.len);
+        std::swap(this->arr, rval.arr);
+        std::swap(this->ctr, rval.ctr);
         return *this;
     }
 

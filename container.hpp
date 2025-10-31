@@ -25,29 +25,10 @@ public:
         : data(other.data ? new T(*other.data) : nullptr) {}
 
     Opt(Opt &&other)
-        : data(other.data) {
-        other.data = nullptr;
-    }
+        : data(std::exchange(other.data, nullptr)) {}
 
-    Opt &operator=(std::nullptr_t) {
-        delete data;
-        data = nullptr;
-        return *this;
-    }
-
-    Opt &operator=(Opt const &other) {
-        if (this != &other) {
-            delete data;
-            data = other.data ? new T(*other.data) : nullptr;
-        }
-        return *this;
-    }
-
-    Opt &operator=(Opt &&other) {
-        assert(this != &other);  // self-assignment is not allowed
-        delete data;
-        data = other.data;
-        other.data = nullptr;
+    Opt &operator=(Opt other) {
+        std::swap(this->data, other.data);
         return *this;
     }
 
@@ -85,23 +66,10 @@ public:
         : data(new T(*other.data)) {}
 
     Box(Box &&other)
-        : data(other.data) {
-        other.data = nullptr;
-    }
+        : data(std::exchange(other.data, nullptr)) {}
 
-    Box &operator=(Box const &other) {
-        if (this != &other) {
-            delete data;
-            data = new T(*other.data);
-        }
-        return *this;
-    }
-
-    Box &operator=(Box &&other) {
-        assert(this != &other);  // self-assignment is not allowed
-        delete data;
-        data = other.data;
-        other.data = nullptr;
+    Box &operator=(Box other) {
+        std::swap(this->data, other.data);
         return *this;
     }
 

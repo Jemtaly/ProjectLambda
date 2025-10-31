@@ -12,8 +12,8 @@ class BigInt {
         : data(std::forward<T>(args)...) {}
 
 public:
-    static BigInt from_string(std::string const &str) {
-        return BigInt(str);
+    static BigInt from_string(std::string_view str) {
+        return BigInt(std::string(str));
     }
 
     std::string to_string() const {

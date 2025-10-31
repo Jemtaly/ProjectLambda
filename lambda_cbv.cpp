@@ -1,17 +1,17 @@
 #include <cassert>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <queue>
-#include <stack>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
 
 #include "container.hpp"
-#include "slice.hpp"
 
 #ifndef USE_GMP
 #include "bigint_nat.hpp"  // native big integer
@@ -27,22 +27,27 @@
 #include <unistd.h>
 #endif
 
-#ifndef STACK_SIZE
-#define STACK_SIZE 8388608  // 8 MiB
+struct StreamStatus {
+    bool check_stdin;
+    bool check_stdout;
+    bool check_stderr;
+};
+
+StreamStatus io_check() {
+    bool check_stdin = false;
+    bool check_stdout = false;
+    bool check_stderr = false;
+#if defined _WIN32
+    DWORD dwModeTemp;
+    check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
+    check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
+    check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
+#elif defined __unix__
+    check_stdin = isatty(fileno(stdin));
+    check_stdout = isatty(fileno(stdout));
+    check_stderr = isatty(fileno(stderr));
 #endif
-
-char *stack_top;
-char *stack_cur;
-
-void ini_stack() {
-    char dummy;
-    stack_top = &dummy;
-}
-
-bool chk_stack() {
-    char dummy;
-    stack_cur = &dummy;
-    return stack_top - stack_cur >= STACK_SIZE / 2;
+    return {check_stdin, check_stdout, check_stderr};
 }
 
 #if defined _WIN32
@@ -67,28 +72,41 @@ void clr_flag() {
 bool chk_flag() {
     return flag_rec;
 }
+
+__attribute__((constructor)) void set_signal() {
+    // set signal handler
+    struct sigaction act;
+    act.sa_handler = set_flag;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;  // use SA_RESTART to avoid getting EOF when SIGINT is received during input
+    sigaction(SIGINT, &act, NULL);
+}
 #endif
 
-auto read(Slice &exp) {
-    auto i = exp.get_beg();
-    auto n = exp.get_end();
+std::string_view read(std::string_view &exp) {
+    size_t i = 0;
+    size_t n = exp.size();
     for (;; i++) {
         if (i == n) {
-            return exp.reset_to(i, n), exp.from_to(i, i);
-        } else if (*i != ' ') {
+            auto res = exp.substr(i, n - i);
+            exp.remove_prefix(i);
+            return res;
+        } else if (exp[i] != ' ') {
             break;
         }
     }
-    auto j = i;
-    auto c = 0;
+    size_t j = i;
+    size_t c = 0;
     for (;; i++) {
-        if ((i == n || *i == ' ') && c == 0) {
-            return exp.reset_to(i, n), exp.from_to(j, i);
+        if ((i == n || exp[i] == ' ') && c == 0) {
+            auto res = exp.substr(j, i - j);
+            exp.remove_prefix(i);
+            return res;
         } else if (i == n) {
             throw std::runtime_error("mismatched parentheses");
-        } else if (*i == '(') {
+        } else if (exp[i] == '(') {
             c++;
-        } else if (*i == ')') {
+        } else if (exp[i] == ')') {
             c--;
         }
     }
@@ -110,17 +128,17 @@ typedef BigInt (*opr_t)(BigInt const &, BigInt const &);
 typedef bool (*cmp_t)(BigInt const &, BigInt const &);
 
 static inline std::unordered_map<char, opr_t> const oprs = {
-    {'+', operator+ },
-    {'-', operator- },
-    {'*', operator* },
-    {'/', operator/ },
-    {'%', operator% },
+    {'+', operator+},
+    {'-', operator-},
+    {'*', operator*},
+    {'/', operator/},
+    {'%', operator%},
 };
 
 static inline std::unordered_map<char, cmp_t> const cmps = {
-    {'>', operator> },
+    {'>', operator>},
     {'<', operator<},
-    {'=', operator== },
+    {'=', operator==},
 };
 
 class Tree {
@@ -166,36 +184,38 @@ class Tree {
         }
     }
 
-    static Tree parse(Slice &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
+    static Tree parse(std::string_view &&exp, Tree &&fun = std::nullopt, Tree &&fst = std::nullopt) {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
-        } else if (sym[0] == '\\') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
-        } else if (sym[0] == '|') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
-        } else if (sym[0] == '^') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), parse(std::move(exp))))));
-        } else if (sym[0] == '@') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym(1, 0), build(std::move(fun), first(std::move(fst))))));
+        } else if (sym.front() == '\\') {
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), parse(std::move(exp))))));
+        } else if (sym.front() == '|') {
+            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))))));
+        } else if (sym.front() == '^') {
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), parse(std::move(exp))))));
+        } else if (sym.front() == '@') {
+            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))))));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
     }
 
-    static Tree lex(Slice const &sym) {
-        if (sym[0] == '(' && sym[-1] == ')') {
-            return parse(sym(1, -1));
-        } else if (sym[0] == '$') {
-            return Tree(std::in_place_index<TokenIdx::Par>, sym(1, 0));
-        } else if (sym[0] == '&') {
-            return Tree(std::in_place_index<TokenIdx::Glb>, sym(1, 0));
+    static Tree lex(std::string_view &&sym) {
+        if (sym.front() == '(' && sym.back() == ')') {
+            sym.remove_prefix(1);
+            sym.remove_suffix(1);
+            return parse(std::move(sym));
+        } else if (sym.front() == '$') {
+            return Tree(std::in_place_index<TokenIdx::Par>, sym.substr(1));
+        } else if (sym.front() == '&') {
+            return Tree(std::in_place_index<TokenIdx::Glb>, sym.substr(1));
         } else if (sym.size() == 3 && sym == "...") {
             return Tree(std::in_place_index<TokenIdx::Nil>);
         } else if (sym.size() == 1 && sym == "?") {
             return Tree(std::in_place_index<TokenIdx::Chk>);
-        } else if (auto const &o = oprs.find(sym[0]); sym.size() == 1 && o != oprs.end()) {
+        } else if (auto const &o = oprs.find(sym.front()); sym.size() == 1 && o != oprs.end()) {
             return Tree(std::in_place_index<TokenIdx::Opr>, *o);
-        } else if (auto const &c = cmps.find(sym[0]); sym.size() == 1 && c != cmps.end()) {
+        } else if (auto const &c = cmps.find(sym.front()); sym.size() == 1 && c != cmps.end()) {
             return Tree(std::in_place_index<TokenIdx::Cmp>, *c);
         } else {
             try {
@@ -206,10 +226,10 @@ class Tree {
         }
     }
 
-    void calc() {
+    void calc(size_t stack_depth) {
         static auto const T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
         static auto const F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
-        if (chk_stack()) {
+        if (stack_depth++ >= 65536) {
             throw std::runtime_error("recursion limit exceeded");
         }
     tail_call:
@@ -218,11 +238,11 @@ class Tree {
         }
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
-            fst.calc();
+            fst.calc(stack_depth);
             if (auto pnil = std::get_if<TokenIdx::Nil>(&fst.token)) {
                 token.emplace<TokenIdx::Nil>();
             } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 *this = snd.token.index() == TokenIdx::Nil ? F : T;
             } else if (auto plef = std::get_if<TokenIdx::LEF>(&fst.token)) {
                 auto &[par, tmp] = **plef;
@@ -230,13 +250,13 @@ class Tree {
                 *this = Tree(std::move(tmp));
                 goto tail_call;
             } else if (auto peef = std::get_if<TokenIdx::EEF>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 auto &[par, tmp] = **peef;
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
                 goto tail_call;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token); pint && (*pint || popr->first != '/' && popr->first != '%')) {
                     token = std::make_pair(std::move(*popr), std::move(*pint));
                 } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
@@ -245,7 +265,7 @@ class Tree {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
             } else if (auto pcmp = std::get_if<TokenIdx::Cmp>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
                     token = std::make_pair(std::move(*pcmp), std::move(*pint));
                 } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
@@ -254,7 +274,7 @@ class Tree {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
             } else if (auto paoi = std::get_if<TokenIdx::AOI>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
                     token = paoi->first.second(std::move(*pint), std::move(paoi->second));
                 } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
@@ -263,7 +283,7 @@ class Tree {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
             } else if (auto paci = std::get_if<TokenIdx::ACI>(&fst.token)) {
-                snd.calc();
+                snd.calc(stack_depth);
                 if (auto pint = std::get_if<TokenIdx::Int>(&snd.token)) {
                     *this = paci->first.second(std::move(*pint), std::move(paci->second)) ? T : F;
                 } else if (auto pnil = std::get_if<TokenIdx::Nil>(&snd.token)) {
@@ -284,7 +304,7 @@ class Tree {
                 }
             } else {
                 if (not rec) {
-                    shr.calc();
+                    shr.calc(stack_depth);
                     rec = true;
                 }
                 *this = shr;
@@ -397,20 +417,20 @@ public:
         }
     }
 
-    static auto cal(Slice &&exp) {
+    static auto cal(std::string_view &&exp) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
         res.analyze(set);
         clr_flag();
-        res.calc();
+        res.calc(0);
         return res;
     }
 
-    static void def(Slice &&exp, std::string const &glb) {
+    static void def(std::string_view &&exp, std::string &&glb) {
         std::unordered_set<std::string> set;
         auto res = parse(std::move(exp));
         res.analyze(set);
-        map.insert_or_assign(glb, std::move(res));
+        map.insert_or_assign(std::move(glb), std::move(res));
     }
 
     static auto const &dir() {
@@ -463,39 +483,15 @@ public:
 };
 
 int main(int argc, char *argv[]) {
-    ini_stack();
-    bool check_stdin = false;
-    bool check_stdout = false;
-    bool check_stderr = false;
-
-#if defined _WIN32
-    DWORD dwModeTemp;
-    check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
-    check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
-    check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
-#elif defined __unix__
-    check_stdin = isatty(fileno(stdin));
-    check_stdout = isatty(fileno(stdout));
-    check_stderr = isatty(fileno(stderr));
-    // set stack size
-    struct rlimit rlim;
-    getrlimit(RLIMIT_STACK, &rlim);
-    rlim.rlim_cur = STACK_SIZE;
-    setrlimit(RLIMIT_STACK, &rlim);
-    // set signal handler
-    struct sigaction act;
-    act.sa_handler = set_flag;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;  // use SA_RESTART to avoid getting EOF when SIGINT is received during input
-    sigaction(SIGINT, &act, NULL);
-#endif
-
+    auto const [check_stdin, check_stdout, check_stderr] = io_check();
     std::string ps_in = check_stderr && check_stdin ? ">> " : "";
     std::string ps_out = check_stderr && check_stdout ? "=> " : "";
     std::string ps_res = check_stderr && check_stdout ? "== " : "";
     for (bool end = false; not end;) {
         std::cerr << ps_in;
-        Slice exp = Slice::getline(std::cin);
+        std::string buf;
+        std::getline(std::cin, buf);
+        std::string_view exp = buf;
         if (std::cin.eof()) {
             end = true;
             if (check_stderr && check_stdin) {
@@ -505,8 +501,8 @@ int main(int argc, char *argv[]) {
         try {
             if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
-            } else if (cmd[0] == ':') {
-                Tree::def(std::move(exp), cmd(1, 0));
+            } else if (cmd.front() == ':') {
+                Tree::def(std::move(exp), std::string(cmd.substr(1)));
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto res = Tree::cal(std::move(exp));
                 std::cerr << ps_res;
