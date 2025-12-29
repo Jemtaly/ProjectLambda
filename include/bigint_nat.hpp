@@ -23,64 +23,6 @@ class BigInt {
     }
 
 public:
-    static BigInt from_string(std::string_view sv) {
-        auto itr = sv.rbegin(), end = sv.rend();
-        if (sv.front() == '+' || sv.front() == '-') {
-            end--;
-        }
-        size_t len = end - itr;
-        int8_t *arr = new int8_t[len + 1];
-        if (sv.front() == '-') {
-            int8_t d = 10;
-            for (size_t j = 0; itr != end; itr++) {
-                if (*itr < '0' || *itr > '9') {
-                    delete[] arr;
-                    throw std::invalid_argument("invalid argument");
-                } else {
-                    d = '9' - *itr + (d == 10);
-                    arr[j++] = d == 10 ? 0 : d;
-                }
-            }
-            arr[len] = d == 10 ? 0 : 9;
-        } else {
-            for (size_t j = 0; itr != end; itr++) {
-                if (*itr < '0' || *itr > '9') {
-                    delete[] arr;
-                    throw std::invalid_argument("invalid argument");
-                } else {
-                    arr[j++] = *itr - '0';
-                }
-            }
-            arr[len] = 0;
-        }
-        return BigInt(len, arr);
-    }
-
-    std::string to_string() const {
-        char str[len + 2];  // GCC and Clang variable length array extension
-        char *itr = &str[len + 2], *end = &str[len + 2];
-        if (arr[len]) {
-            bool flag = true;
-            for (size_t i = 0; i < len; i++) {
-                int8_t d = '9' - arr[i] + flag;
-                *--itr = (flag = d > '9') ? '0' : d;
-            }
-            if (flag) {
-                *--itr = '1';
-                *--itr = '-';
-            } else {
-                *--itr = '-';
-            }
-        } else if (len) {
-            for (size_t i = 0; i < len; i++) {
-                *--itr = '0' + arr[i];
-            }
-        } else {
-            *--itr = '0';
-        }
-        return std::string(itr, end);
-    }
-
     BigInt clone() const {
         int8_t *narr = new int8_t[len + 1];
         for (size_t i = 0; i <= len; i++) {
@@ -254,5 +196,63 @@ public:
 
     friend bool operator!=(BigInt const &lbi, BigInt const &rbi) {
         return compare(lbi, rbi) != 0;
+    }
+
+    static BigInt from_string(std::string_view sv) {
+        auto itr = sv.rbegin(), end = sv.rend();
+        if (sv.front() == '+' || sv.front() == '-') {
+            end--;
+        }
+        size_t len = end - itr;
+        int8_t *arr = new int8_t[len + 1];
+        if (sv.front() == '-') {
+            int8_t d = 10;
+            for (size_t j = 0; itr != end; itr++) {
+                if (*itr < '0' || *itr > '9') {
+                    delete[] arr;
+                    throw std::invalid_argument("invalid argument");
+                } else {
+                    d = '9' - *itr + (d == 10);
+                    arr[j++] = d == 10 ? 0 : d;
+                }
+            }
+            arr[len] = d == 10 ? 0 : 9;
+        } else {
+            for (size_t j = 0; itr != end; itr++) {
+                if (*itr < '0' || *itr > '9') {
+                    delete[] arr;
+                    throw std::invalid_argument("invalid argument");
+                } else {
+                    arr[j++] = *itr - '0';
+                }
+            }
+            arr[len] = 0;
+        }
+        return BigInt(len, arr);
+    }
+
+    std::string to_string() const {
+        char str[len + 2];  // GCC and Clang variable length array extension
+        char *itr = &str[len + 2], *end = &str[len + 2];
+        if (arr[len]) {
+            bool flag = true;
+            for (size_t i = 0; i < len; i++) {
+                int8_t d = '9' - arr[i] + flag;
+                *--itr = (flag = d > '9') ? '0' : d;
+            }
+            if (flag) {
+                *--itr = '1';
+                *--itr = '-';
+            } else {
+                *--itr = '-';
+            }
+        } else if (len) {
+            for (size_t i = 0; i < len; i++) {
+                *--itr = '0' + arr[i];
+            }
+        } else {
+            *--itr = '0';
+        }
+        return std::string(itr, end);
     }
 };
