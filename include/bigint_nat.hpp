@@ -1,13 +1,14 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 
 class BigInt {
     size_t len;
     int8_t const *arr;
-    size_t *ctr;
 
     int8_t get(size_t i) const {
         return arr[i < len ? i : len];
@@ -15,8 +16,7 @@ class BigInt {
 
     BigInt(size_t rlen, int8_t const *rarr)
         : len(rlen)
-        , arr(rarr)
-        , ctr(new size_t(1)) {
+        , arr(rarr) {
         while (len && arr[len - 1] == arr[len]) {
             len--;
         }
@@ -81,25 +81,32 @@ public:
         return std::string(itr, end);
     }
 
-    BigInt(BigInt const &rval)
-        : len(rval.len)
-        , arr(rval.arr)
-        , ctr(rval.ctr) {
-        ++*ctr;
+    BigInt clone() const {
+        int8_t *narr = new int8_t[len + 1];
+        for (size_t i = 0; i <= len; i++) {
+            narr[i] = arr[i];
+        }
+        return BigInt(len, narr);
     }
 
-    BigInt &operator=(BigInt rval) {
+    BigInt &swap(BigInt &rval) {
         std::swap(this->len, rval.len);
         std::swap(this->arr, rval.arr);
-        std::swap(this->ctr, rval.ctr);
         return *this;
     }
 
+    BigInt(BigInt &&rval)
+        : len(std::exchange(rval.len, 0))
+        , arr(std::exchange(rval.arr, nullptr)) {}
+
+    BigInt(BigInt const &rval) : BigInt(rval.clone()) {}
+
+    BigInt &operator=(BigInt rval) {
+        return this->swap(rval);
+    }
+
     ~BigInt() {
-        if (--*ctr == 0) {
-            delete[] arr;
-            delete ctr;
-        }
+        delete[] arr;
     }
 
     operator bool() const {
@@ -142,8 +149,7 @@ public:
         return BigInt(len, arr);
     }
 
-    template<bool select>
-    friend BigInt divmod(BigInt const &lbi, BigInt const &rbi) {
+    friend std::pair<BigInt, BigInt> divmod(BigInt const &lbi, BigInt const &rbi) {
         size_t len = lbi.len + rbi.len;
         int8_t *parr = new int8_t[len + 1], *narr = new int8_t[len + 1];
         int8_t *qarr = new int8_t[lbi.len + 1];
@@ -192,63 +198,61 @@ public:
         }
         delete[] parr;
         delete[] narr;
-        if constexpr (select) {
-            delete[] qarr;
-            return BigInt(rbi.len, rarr);
-        } else {
-            delete[] rarr;
-            return BigInt(lbi.len, qarr);
-        }
+        return {
+            BigInt(lbi.len, qarr),
+            BigInt(rbi.len, rarr),
+        };
     }
 
     friend BigInt operator/(BigInt const &lbi, BigInt const &rbi) {
-        return divmod<0>(lbi, rbi);
+        auto [quo, rem] = divmod(lbi, rbi);
+        return std::move(quo);
     }
 
     friend BigInt operator%(BigInt const &lbi, BigInt const &rbi) {
-        return divmod<1>(lbi, rbi);
+        auto [quo, rem] = divmod(lbi, rbi);
+        return std::move(rem);
     }
 
-    template<auto gt, auto eq, auto lt>
-    friend auto compare(BigInt const &lbi, BigInt const &rbi) {
+    friend int compare(BigInt const &lbi, BigInt const &rbi) {
         if (lbi.arr[lbi.len] < rbi.arr[rbi.len]) {
-            return gt;
+            return +1;
         }
         if (lbi.arr[lbi.len] > rbi.arr[rbi.len]) {
-            return lt;
+            return -1;
         }
         for (size_t m = lbi.len > rbi.len ? lbi.len : rbi.len, i = m - 1; i < m; i--) {
             if (lbi.get(i) > rbi.get(i)) {
-                return gt;
+                return +1;
             }
             if (lbi.get(i) < rbi.get(i)) {
-                return lt;
+                return -1;
             }
         }
-        return eq;
+        return 0;
     }
 
     friend bool operator>(BigInt const &lbi, BigInt const &rbi) {
-        return compare<true, false, false>(lbi, rbi);
+        return compare(lbi, rbi) > 0;
     }
 
     friend bool operator<(BigInt const &lbi, BigInt const &rbi) {
-        return compare<false, false, true>(lbi, rbi);
+        return compare(lbi, rbi) < 0;
     }
 
     friend bool operator>=(BigInt const &lbi, BigInt const &rbi) {
-        return compare<true, true, false>(lbi, rbi);
+        return compare(lbi, rbi) >= 0;
     }
 
     friend bool operator<=(BigInt const &lbi, BigInt const &rbi) {
-        return compare<false, true, true>(lbi, rbi);
+        return compare(lbi, rbi) <= 0;
     }
 
     friend bool operator==(BigInt const &lbi, BigInt const &rbi) {
-        return compare<false, true, false>(lbi, rbi);
+        return compare(lbi, rbi) == 0;
     }
 
     friend bool operator!=(BigInt const &lbi, BigInt const &rbi) {
-        return compare<true, false, true>(lbi, rbi);
+        return compare(lbi, rbi) != 0;
     }
 };
