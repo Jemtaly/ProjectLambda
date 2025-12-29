@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+test() {
+  local bin="$1"
+  local name="$2"
+  local expected="$3"
+
+  shift 3
+
+  local out=$(printf '%s\n' "$@" | "$bin")
+
+  if [ "$out" != "$expected" ]; then
+    echo "[tests] FAIL: $name" >&2
+    echo "[tests] expected: '$expected'" >&2
+    echo "[tests] got:      '$out'" >&2
+    exit 1
+  else
+    echo "[tests] PASS: $name" >&2
+  fi
+}
+
+PROJECT_DIR=$(dirname $(dirname $(realpath $0)))
+BUILD_DIR=${PROJECT_DIR}/build
+
+if [ ! -d "${BUILD_DIR}" ]; then
+  echo "[tests] No build directory found. Please run scripts/build first." >&2
+  exit 1
+fi
+
+for bin in ${BUILD_DIR}/*; do
+  name=$(basename "$bin")
+
+  test "$bin" "$name: add" "3" \
+    'cal + 1 2' \
+    'end'
+
+  test "$bin" "$name: mul" "6" \
+    'cal * 2 3' \
+    'end'
+
+  test "$bin" "$name: factorial" "120" \
+    'cal (\g $x $x |x \x $g ($x $x)) (\f \n (= 0 $n 1 (* $n ($f (- 1 $n))))) 5' \
+    'end'
+done

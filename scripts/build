@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+PROJECT_DIR=$(dirname $(dirname $(realpath $0)))
+SRC_DIR=${PROJECT_DIR}/src
+
+for f in ${SRC_DIR}/*.cpp; do
+    make SOURCE=$f
+    make SOURCE=$f USE_GMP=1
+done
