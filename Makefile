@@ -1,10 +1,10 @@
 CXX = clang++
-SOURCE = main.cpp
-NAME = $(basename $(SOURCE))
+SOURCE = src/main.cpp
+NAME = $(notdir $(basename $(SOURCE)))
 BUILD_DIR = build
 VERSION = $(shell git describe --tags --always --dirty="-dev" 2>/dev/null || echo "unknown")
 MACHINE = $(shell $(CXX) -dumpmachine)
-CXXFLAGS = -std=c++20 -O3
+CXXFLAGS = -std=c++20 -O3 -Iinclude
 
 ifeq ($(findstring linux,$(MACHINE)), linux)
     EXE_EXT =

@@ -11,12 +11,12 @@
 #include <unordered_set>
 #include <variant>
 
-#include "container.hpp"
+#include <container.hpp>
 
 #ifndef USE_GMP
-#include "bigint_nat.hpp"  // native big integer
+#include <bigint_nat.hpp>  // native big integer
 #else
-#include "bigint_gmp.hpp"  // GNU MP big integer
+#include <bigint_gmp.hpp>  // GNU MP big integer
 #endif
 
 #if defined _WIN32
@@ -148,9 +148,8 @@ class Tree {
         Par, Int,
         Opr, AOI,
         Cmp, ACI,
-        LEF, EEF,  // Lazy/Eager-Evaluation Function
+        Fun,
         App, Arg,
-        Glb,
     };
 
     using TokenVar = std::variant<
@@ -159,9 +158,8 @@ class Tree {
         std::string, BigInt,
         std::pair<char, opr_t>, std::pair<std::pair<char, opr_t>, BigInt>,
         std::pair<char, cmp_t>, std::pair<std::pair<char, cmp_t>, BigInt>,
-        Box<std::pair<std::string, Tree>>, Box<std::pair<std::string, Tree>>,
-        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>,
-        std::string>;
+        Box<std::tuple<std::string, Tree, bool>>,
+        Box<std::pair<Tree, Tree>>, std::shared_ptr<std::pair<Tree, bool>>>;
     TokenVar token;
 
     template<typename... Args, typename = std::enable_if_t<std::is_constructible_v<TokenVar, Args &&...>>>
@@ -188,13 +186,13 @@ class Tree {
         if (auto sym = read(exp); sym.empty()) {
             return build(std::move(fun), first(std::move(fst)));
         } else if (sym.front() == '\\') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make(sym.substr(1), parse(std::move(exp)), 0))));
         } else if (sym.front() == '|') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))), 0)));
         } else if (sym.front() == '^') {
-            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), parse(std::move(exp))))));
+            return build(std::move(fun), build(std::move(fst), Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make(sym.substr(1), parse(std::move(exp)), 1))));
         } else if (sym.front() == '@') {
-            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::EEF>, Box<std::pair<std::string, Tree>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))))));
+            return parse(std::move(exp), Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make(sym.substr(1), build(std::move(fun), first(std::move(fst))), 1)));
         } else {
             return parse(std::move(exp), std::move(fun), build(std::move(fst), lex(std::move(sym))));
         }
@@ -207,8 +205,6 @@ class Tree {
             return parse(std::move(sym));
         } else if (sym.front() == '$') {
             return Tree(std::in_place_index<TokenIdx::Par>, sym.substr(1));
-        } else if (sym.front() == '&') {
-            return Tree(std::in_place_index<TokenIdx::Glb>, sym.substr(1));
         } else if (sym.size() == 3 && sym == "...") {
             return Tree(std::in_place_index<TokenIdx::Nil>);
         } else if (sym.size() == 1 && sym == "?") {
@@ -227,8 +223,14 @@ class Tree {
     }
 
     void calc(size_t stack_depth) {
-        static auto const T = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "T")))));
-        static auto const F = Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("T", Tree(std::in_place_index<TokenIdx::LEF>, Box<std::pair<std::string, Tree>>::make("F", Tree(std::in_place_index<TokenIdx::Par>, "F")))));
+        static auto const T = 
+            Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("T",
+                Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("F",
+                    Tree(std::in_place_index<TokenIdx::Par>, "T"), 0)), 0));
+        static auto const F = 
+            Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("T",
+                Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("F",
+                    Tree(std::in_place_index<TokenIdx::Par>, "F"), 0)), 0));
         if (stack_depth++ >= 65536) {
             throw std::runtime_error("recursion limit exceeded");
         }
@@ -244,15 +246,12 @@ class Tree {
             } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
                 snd.calc(stack_depth);
                 *this = snd.token.index() == TokenIdx::Nil ? F : T;
-            } else if (auto plef = std::get_if<TokenIdx::LEF>(&fst.token)) {
-                auto &[par, tmp] = **plef;
+            } else if (auto pfun = std::get_if<TokenIdx::Fun>(&fst.token)) {
+                auto &[par, tmp, eager] = **pfun;
+                if (eager) {
+                    snd.calc(stack_depth);
+                }
                 tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
-                *this = Tree(std::move(tmp));
-                goto tail_call;
-            } else if (auto peef = std::get_if<TokenIdx::EEF>(&fst.token)) {
-                snd.calc(stack_depth);
-                auto &[par, tmp] = **peef;
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 1), std::move(par));
                 *this = Tree(std::move(tmp));
                 goto tail_call;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
@@ -309,13 +308,6 @@ class Tree {
                 }
                 *this = shr;
             }
-        } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
-            if (auto const &itr = map.find(*pglb); itr != map.end()) {
-                *this = itr->second;
-                goto tail_call;
-            } else {
-                throw std::runtime_error("undefined symbol: &" + *pglb);
-            }
         }
     }
 
@@ -324,13 +316,8 @@ class Tree {
             auto &[fst, snd] = **papp;
             fst.substitute(arg, tar);
             snd.substitute(arg, tar);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
-            if (par != tar) {
-                tmp.substitute(arg, tar);
-            }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto pfun = std::get_if<TokenIdx::Fun>(&token)) {
+            auto &[par, tmp, eager] = **pfun;
             if (par != tar) {
                 tmp.substitute(arg, tar);
             }
@@ -341,22 +328,13 @@ class Tree {
         }
     }
 
-    void analyze(std::unordered_set<std::string> &set) const {
+    void analyze(std::unordered_set<std::string> &set) {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
             fst.analyze(set);
             snd.analyze(set);
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
-            if (set.find(par) != set.end()) {
-                tmp.analyze(set);
-            } else {
-                auto pos = set.insert(par).first;
-                tmp.analyze(set);
-                set.erase(pos);
-            }
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
+        } else if (auto pfun = std::get_if<TokenIdx::Fun>(&token)) {
+            auto &[par, tmp, eager] = **pfun;
             if (set.find(par) != set.end()) {
                 tmp.analyze(set);
             } else {
@@ -366,12 +344,16 @@ class Tree {
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
             if (set.find(*ppar) == set.end()) {
-                throw std::runtime_error("unbound variable: $" + *ppar);
+                if (auto const &itr = map.find(*ppar); itr != map.end()) {
+                    token.emplace<TokenIdx::Arg>(itr->second);
+                } else {
+                    throw std::runtime_error("unbound variable: $" + *ppar);
+                }
             }
         }
     }
 
-    static inline std::unordered_map<std::string, Tree> map;
+    static inline std::unordered_map<std::string, std::shared_ptr<std::pair<Tree, bool>>> map;
 
 public:
     Tree(Tree const &other)
@@ -402,11 +384,8 @@ public:
                 auto &[fst, snd] = **papp;
                 flat.push(std::exchange(fst.token, std::nullopt));
                 flat.push(std::exchange(snd.token, std::nullopt));
-            } else if (auto parg = std::get_if<TokenIdx::LEF>(&token)) {
-                auto &[par, tmp] = **parg;
-                flat.push(std::exchange(tmp.token, std::nullopt));
-            } else if (auto parg = std::get_if<TokenIdx::EEF>(&token)) {
-                auto &[par, tmp] = **parg;
+            } else if (auto parg = std::get_if<TokenIdx::Fun>(&token)) {
+                auto &[par, tmp, eager] = **parg;
                 flat.push(std::exchange(tmp.token, std::nullopt));
             } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
                 auto &shr = (*parg)->first;
@@ -417,20 +396,16 @@ public:
         }
     }
 
-    static auto cal(std::string_view &&exp) {
+    static auto const &put(std::string_view &&exp, std::string &&par, bool calc) {
         auto res = parse(std::move(exp));
         std::unordered_set<std::string> set;
         res.analyze(set);
-        clr_flag();
-        res.calc(0);
-        return res;
-    }
-
-    static void def(std::string_view &&exp, std::string &&glb) {
-        std::unordered_set<std::string> set;
-        auto res = parse(std::move(exp));
-        res.analyze(set);
-        map.insert_or_assign(std::move(glb), std::move(res));
+        map.erase(par);
+        if (calc) {
+            clr_flag();
+            res.calc(0);
+        }
+        return map.emplace(std::move(par), std::make_shared<std::pair<Tree, bool>>(std::move(res), calc)).first->second->first;
     }
 
     static auto const &dir() {
@@ -446,13 +421,9 @@ public:
             return "...";
         } else if (auto pchk = std::get_if<TokenIdx::Chk>(&token)) {
             return "?";
-        } else if (auto plef = std::get_if<TokenIdx::LEF>(&token)) {
-            auto &[par, tmp] = **plef;
-            auto s = "\\" + par + " " + tmp.translate(0, rb && !rb);
-            return rb ? "(" + s + ")" : s;
-        } else if (auto peef = std::get_if<TokenIdx::EEF>(&token)) {
-            auto &[par, tmp] = **peef;
-            auto s = "^" + par + " " + tmp.translate(0, rb && !rb);
+        } else if (auto pfun = std::get_if<TokenIdx::Fun>(&token)) {
+            auto &[par, tmp, eager] = **pfun;
+            auto s = (eager ? "^" : "\\") + par + " " + tmp.translate(0, rb && !rb);
             return rb ? "(" + s + ")" : s;
         } else if (auto pint = std::get_if<TokenIdx::Int>(&token)) {
             return pint->to_string();
@@ -474,8 +445,6 @@ public:
             return (*parg)->first.translate(lb, rb);
         } else if (auto ppar = std::get_if<TokenIdx::Par>(&token)) {
             return "$" + *ppar;
-        } else if (auto pglb = std::get_if<TokenIdx::Glb>(&token)) {
-            return "&" + *pglb;
         } else {
             assert(false);  // unreachable
         }
@@ -502,15 +471,15 @@ int main(int argc, char *argv[]) {
             if (auto cmd = read(exp); cmd.empty() || cmd.size() == 1 && cmd == "#") {
                 continue;
             } else if (cmd.front() == ':') {
-                Tree::def(std::move(exp), std::string(cmd.substr(1)));
+                Tree::put(std::move(exp), std::string(cmd.substr(1)), 0);
             } else if (cmd.size() == 3 && cmd == "cal") {
-                auto res = Tree::cal(std::move(exp));
+                auto &res = Tree::put(std::move(exp), "", 1);
                 std::cerr << ps_res;
                 std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
-                for (auto &[glb, tmp] : Tree::dir()) {
+                for (auto &[par, arg] : Tree::dir()) {
                     std::cerr << ps_out;
-                    std::cout << std::left << std::setw(10) << ":" + (glb.size() <= 8 ? glb : glb.substr(0, 6) + "..") << tmp.translate() << std::endl;
+                    std::cout << ":" + par << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
                 Tree::clr();
