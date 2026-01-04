@@ -25,26 +25,30 @@
 #endif
 
 struct StreamStatus {
-    bool check_stdin;
-    bool check_stdout;
-    bool check_stderr;
+    bool stdin_flag;
+    bool stdout_flag;
+    bool stderr_flag;
 };
 
 StreamStatus io_check() {
-    bool check_stdin = false;
-    bool check_stdout = false;
-    bool check_stderr = false;
+    bool stdin_flag = false;
+    bool stdout_flag = false;
+    bool stderr_flag = false;
 #if defined _WIN32
     DWORD dwModeTemp;
-    check_stdin = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
-    check_stdout = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
-    check_stderr = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
+    stdin_flag = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &dwModeTemp);
+    stdout_flag = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &dwModeTemp);
+    stderr_flag = GetConsoleMode(GetStdHandle(STD_ERROR_HANDLE), &dwModeTemp);
 #elif defined __unix__
-    check_stdin = isatty(fileno(stdin));
-    check_stdout = isatty(fileno(stdout));
-    check_stderr = isatty(fileno(stderr));
+    stdin_flag = isatty(fileno(stdin));
+    stdout_flag = isatty(fileno(stdout));
+    stderr_flag = isatty(fileno(stderr));
 #endif
-    return {check_stdin, check_stdout, check_stderr};
+    return {
+        stdin_flag,
+        stdout_flag,
+        stderr_flag,
+    };
 }
 
 #if defined _WIN32
@@ -424,19 +428,22 @@ public:
     }
 };
 
+#define PS_IN ">> "
+#define PS_OUT "=> "
+#define PS_RES "== "
+
 int main(int argc, char *argv[]) {
-    auto const [check_stdin, check_stdout, check_stderr] = io_check();
-    std::string ps_in = check_stderr && check_stdin ? ">> " : "";
-    std::string ps_out = check_stderr && check_stdout ? "=> " : "";
-    std::string ps_res = check_stderr && check_stdout ? "== " : "";
+    StreamStatus status = io_check();
     for (bool end = false; not end;) {
-        std::cerr << ps_in;
+        if (status.stderr_flag && status.stdin_flag) {
+            std::cerr << PS_IN;
+        }
         std::string buf;
         std::getline(std::cin, buf);
         std::string_view exp = buf;
         if (std::cin.eof()) {
             end = true;
-            if (check_stderr && check_stdin) {
+            if (status.stderr_flag && status.stdin_flag) {
                 std::cerr << std::endl;
             }
         }
@@ -447,11 +454,15 @@ int main(int argc, char *argv[]) {
                 Tree::put(std::move(exp), std::string(cmd.substr(1)), 0);
             } else if (cmd.size() == 3 && cmd == "cal") {
                 auto &res = Tree::put(std::move(exp), "", 1);
-                std::cerr << ps_res;
+                if (status.stderr_flag && status.stdout_flag) {
+                    std::cerr << PS_RES;
+                }
                 std::cout << res.translate() << std::endl;
             } else if (cmd.size() == 3 && cmd == "dir") {
                 for (auto &[par, arg] : Tree::dir()) {
-                    std::cerr << ps_out;
+                    if (status.stderr_flag && status.stdout_flag) {
+                        std::cerr << PS_OUT;
+                    }
                     std::cout << ":" + par << std::endl;
                 }
             } else if (cmd.size() == 3 && cmd == "clr") {
