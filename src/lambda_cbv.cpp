@@ -260,7 +260,7 @@ class Tree {
                 if (eager) {
                     snd.calc(stack_depth);
                 }
-                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), 0), std::move(par));
+                tmp.substitute(std::make_shared<std::pair<Tree, bool>>(std::move(snd), eager), std::move(par));
                 *this = Tree(std::move(tmp));
                 goto tail_call;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(&fst.token)) {
@@ -303,14 +303,14 @@ class Tree {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }
         } else if (auto parg = std::get_if<TokenIdx::Arg>(&token)) {
-            auto &shr = (*parg)->first;
-            auto rec = (*parg)->second;
             if (parg->use_count() == 1) {
-                *this = Tree(std::move(shr));
+                auto [shr, rec] = std::move(**parg);
+                *this = std::move(shr);
                 if (not rec) {
                     goto tail_call;
                 }
             } else {
+                auto &[shr, rec] = **parg;
                 if (not rec) {
                     shr.calc(stack_depth);
                     rec = true;
