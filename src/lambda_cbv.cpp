@@ -240,9 +240,10 @@ class Tree {
             Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("T",
                 Tree(std::in_place_index<TokenIdx::Fun>, Box<std::tuple<std::string, Tree, bool>>::make("F",
                     Tree(std::in_place_index<TokenIdx::Par>, "F"), 0)), 0));
-        if (stack_depth++ >= 65536) {
+        if (stack_depth >= 65536) {
             throw std::runtime_error("recursion limit exceeded");
         }
+        stack_depth++;
     tail_call:
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
@@ -250,12 +251,7 @@ class Tree {
         if (auto papp = std::get_if<TokenIdx::App>(&token)) {
             auto &[fst, snd] = **papp;
             fst.calc(stack_depth);
-            if (auto pnil = std::get_if<TokenIdx::Nil>(&fst.token)) {
-                token.emplace<TokenIdx::Nil>();
-            } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
-                snd.calc(stack_depth);
-                *this = snd.token.index() == TokenIdx::Nil ? F : T;
-            } else if (auto pfun = std::get_if<TokenIdx::Fun>(&fst.token)) {
+            if (auto pfun = std::get_if<TokenIdx::Fun>(&fst.token)) {
                 auto &[par, tmp, eager] = **pfun;
                 if (eager) {
                     snd.calc(stack_depth);
@@ -299,6 +295,11 @@ class Tree {
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
+            } else if (auto pchk = std::get_if<TokenIdx::Chk>(&fst.token)) {
+                snd.calc(stack_depth);
+                *this = snd.token.index() == TokenIdx::Nil ? F : T;
+            } else if (auto pnil = std::get_if<TokenIdx::Nil>(&fst.token)) {
+                token.emplace<TokenIdx::Nil>();
             } else {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }

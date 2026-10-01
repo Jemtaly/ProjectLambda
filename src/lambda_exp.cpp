@@ -230,29 +230,25 @@ class Tree {
             Tree(new TokenVar(std::in_place_index<TokenIdx::Fun>, "T",
                 Tree(new TokenVar(std::in_place_index<TokenIdx::Fun>, "F",
                     Tree(new TokenVar(std::in_place_index<TokenIdx::Par>, "F")), 0)), 0));
-        if (stack_depth++ > 65536) {
+        if (stack_depth >= 65536) {
             throw std::runtime_error("recursion limit exceeded");
         }
+        stack_depth++;
+    tail_call:
         if (chk_flag()) {
             throw std::runtime_error("keyboard interrupt");
         }
         if (auto papp = std::get_if<TokenIdx::App>(pnode.get())) {
             auto &[fst, snd] = *papp;
             fst.calc(stack_depth);
-            snd.is_context_free = 1;
-            if (auto pnil = std::get_if<TokenIdx::Nil>(fst.pnode.get())) {
-                *pnode = *N.pnode;
-            } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.pnode.get())) {
-                snd.calc(stack_depth);
-                *pnode = snd.pnode->index() == TokenIdx::Nil ? *F.pnode : *T.pnode;
-            } else if (auto pfun = std::get_if<TokenIdx::Fun>(fst.pnode.get())) {
+            if (auto pfun = std::get_if<TokenIdx::Fun>(fst.pnode.get())) {
                 auto &[par, tmp, eager] = *pfun;
                 if (eager) {
                     snd.calc(stack_depth);
                 }
                 auto tsb = tmp.substitute(snd, par);
-                tsb.calc(stack_depth);
                 *pnode = *tsb.pnode;
+                goto tail_call;
             } else if (auto popr = std::get_if<TokenIdx::Opr>(fst.pnode.get())) {
                 snd.calc(stack_depth);
                 if (auto pint = std::get_if<TokenIdx::Int>(snd.pnode.get()); pint && (*pint || popr->first != '/' && popr->first != '%')) {
@@ -289,6 +285,11 @@ class Tree {
                 } else {
                     throw std::runtime_error("cannot apply " + fst.translate() + " on: " + snd.translate());
                 }
+            } else if (auto pchk = std::get_if<TokenIdx::Chk>(fst.pnode.get())) {
+                snd.calc(stack_depth);
+                *pnode = snd.pnode->index() == TokenIdx::Nil ? *F.pnode : *T.pnode;
+            } else if (auto pnil = std::get_if<TokenIdx::Nil>(fst.pnode.get())) {
+                *pnode = *N.pnode;
             } else {
                 throw std::runtime_error("invalid function: " + fst.translate());
             }
@@ -316,7 +317,9 @@ class Tree {
             }
         } else if (auto ppar = std::get_if<TokenIdx::Par>(pnode.get())) {
             if (*ppar == tar) {
-                return arg;
+                Tree res = arg;
+                res.is_context_free = 1;
+                return res;
             }
         }
         return *this;
